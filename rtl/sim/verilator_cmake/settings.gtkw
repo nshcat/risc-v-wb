@@ -1,20 +1,18 @@
 [*]
 [*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
-[*] Thu Dec 23 21:04:13 2021
+[*] Thu Dec 23 23:16:30 2021
 [*]
-[dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\bld\waveforms.fst"
-[dumpfile_mtime] "Thu Dec 23 21:01:08 2021"
-[dumpfile_size] 17897512
+[dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\waveforms.fst"
 [savefile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\settings.gtkw"
-[timestart] 1
-[size] 2594 768
-[pos] 788 125
-*-13.000000 3360 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 32
+[size] 3103 768
+[pos] -1 -1
+*-4.000000 46 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.top_verilator.
 [treeopen] TOP.top_verilator.cpu.
 [sst_width] 357
-[signals_width] 348
+[signals_width] 230
 [sst_expanded] 1
 [sst_vpaned_height] 214
 @200
@@ -26,16 +24,20 @@ TOP.clk_i
 -
 -CPU state and instruction
 @100000028
+[color] 3
 TOP.top_verilator.cpu.cpu_state[3:0]
 @22
+[color] 3
 TOP.top_verilator.cpu.instruction[31:0]
 @100000028
+[color] 3
 TOP.top_verilator.cpu.instr_opcode[6:0]
 @200
 -
 -Register file
-@c00022
-TOP.top_verilator.cpu.registers(5)[31:0]
+@c00023
+[color] 2
++{t0} TOP.top_verilator.cpu.registers(5)[31:0]
 @28
 (0)TOP.top_verilator.cpu.registers(5)[31:0]
 (1)TOP.top_verilator.cpu.registers(5)[31:0]
@@ -69,7 +71,7 @@ TOP.top_verilator.cpu.registers(5)[31:0]
 (29)TOP.top_verilator.cpu.registers(5)[31:0]
 (30)TOP.top_verilator.cpu.registers(5)[31:0]
 (31)TOP.top_verilator.cpu.registers(5)[31:0]
-@1401200
+@1401201
 -group_end
 [pattern_trace] 1
 [pattern_trace] 0
