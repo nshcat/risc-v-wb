@@ -24,4 +24,4 @@ add_dependencies(interactive socsim)
 
 add_custom_target(gtkwave
 	COMMAND ${GTKWAVEPATH} waveforms.fst ./../settings.gtkw)
-add_dependencies(gtkwave socsim)
+add_dependencies(gtkwave socsim sim)
