@@ -1,7 +1,13 @@
+`include "wb_master.vh"
+`include "wb_bus.vh"
+
 module core(
     input logic clk_in,
     input logic reset_in
 );
+
+// ==== Macros ====
+`define IN_STATE(state) cpu_state == state
 
 // ==== Constants ====
 typedef enum logic[6:0]
@@ -38,6 +44,16 @@ typedef enum logic [6:0]
     FUNCT7_ALT              = 7'b0100000        // Alternative operation, SUB instead of ADD, arithmetic shift
 } funct7_t;
 
+typedef enum logic [2:0]
+{
+    FUNCT3_BRANCH_BEQ       = 3'b000,
+    FUNCT3_BRANCH_BNE       = 3'b001,
+    FUNCT3_BRANCH_BLT       = 3'b100,
+    FUNCT3_BRANCH_BGE       = 3'b101,
+    FUNCT3_BRANCH_BLTU      = 3'b110,
+    FUNCT3_BRANCH_BGEU      = 3'b111
+} funct3_branch_t;
+
 // ==== Instruction decoding ====
 
 // The currently latched instruction
@@ -50,7 +66,6 @@ logic [4:0] instr_rd = instruction[11:7];
 logic [4:0] instr_shamt = instruction[24:20];
 logic [2:0] instr_func3 = instruction[14:12];
 logic [6:0] instr_func7 = instruction[31:25];
-logic [4:0] instr_shamt = instruction[24:20];
 
 logic is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
 logic is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
@@ -80,6 +95,10 @@ logic [31:0] imm_J = { (imm_sign ? 12'hFFF : 12'h0), instruction[19:12], instruc
 
 logic [31:0] registers [31:0];
 
+// Latched copies of source register contents
+logic [31:0] rs1_data;
+logic [31:0] rs2_data;
+
 initial begin
     integer i;
     for (i = 0; i < 32; i = i + 1)
@@ -102,15 +121,10 @@ always_ff @(posedge clk_in) begin
     end
 end
 
-// ==== ALU operations ====
+// Stores and branches dont do writeback
+logic do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM));
 
-// XXX
-// XXX
-// /!\ Rework this - dont do any of this reusing (decision!), but implement it more in your own way
-// => Just do another subtraction in the branch section, and addition in the load section, instead of weirdly reusing
-// the code here
-// XXX
-// XXX
+// ==== ALU operations ====
 
 // ArithR and ArithI both use the full ALU result: rd <- rs1 OP (rs2 | imm_I)
 // JALR just uses the add result: PC <- rs1 + Iimm
@@ -118,11 +132,11 @@ end
 // Loads use imm_I as well, so we can reuse the adder: rd <- mem[rs1+imm_I]
 
 // First input is always reg[rs1]
-logic [31:0] arith_in1 = registers[instr_rs1];
+logic [31:0] arith_in1 = rs1_data;
 
 // For branches and R type arithmetic instructions, the second ALU input is reg[rs2], for ALUimm, Load or JALR its I type IMM value
 // We use this for the branch predicate evaluation as well, and JALR.
-logic [31:0] arith_in2 = (isArithR | isBranch) ? registers[instr_rs2] : imm_I;
+logic [31:0] arith_in2 = (is_arith_reg | is_branch) ? rs2_data : imm_I;
 
 // Adder used for arithmetic operations, memory
 logic [31:0] arith_add = arith_in1 + arith_in2;
@@ -215,25 +229,167 @@ always_comb begin
         (is_jal | is_jalr): begin
             writeback_value = pc + 32'h4;
         end
+        (is_load): begin
+            writeback_value = load_result;
+        end
     endcase
 end
 
-// ==== Program counter handling ====
+// ==== Wishbone bus interface ====
+logic [31:0] bus_rdata;
+logic [31:0] bus_wdata;
+logic [3:0] bus_wmask;
+logic [31:0] bus_addr;
+wb_command_t bus_command;
+logic bus_busy;
+
+wb_master bus(
+    .clk_in(clk_in),
+    .reset_in(reset_in),
+
+    .cmd_in(bus_command),
+    .busy_out(bus_busy),
+    .rdata_out(bus_rdata),
+    .wdata_in(bus_wdata),
+    .wmask_in(bus_wmask),
+    .addr_in(bus_addr)
+);
+
+
+// For stores, regs[rs2] is written to memory
+// It has to be valid on state transition from EXECUTE to WAIT_MEM, so we keep the assignment valid for both states.
+assign bus_wdata = (is_store & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM)))
+    ? rs2_data
+    : 32'h0;
+
+// XXX store mask
+assign bus_wmask = 4'b1111;
+
+// Bus command and address handling
+always_comb begin
+    bus_command = WISHBONE_CMD_NONE;
+    bus_addr = 32'h0;
+
+    if (`IN_STATE(CPU_STATE_FETCH)) begin
+        // When transitioning from FETCH -> WAITFETCH, we want to signal the WB master to start
+        // a load
+        bus_command = WISHBONE_CMD_LOAD;
+        bus_addr = pc;
+    end
+    else if (`IN_STATE(CPU_STATE_EXECUTE)) begin
+        // When transitioning from EXECUTE -> WAITMEM, we want to either do a load or a store depending on the 
+        // instruction
+        if (is_load) begin
+            bus_command = WISHBONE_CMD_LOAD;
+            bus_addr = rs1_data + imm_I;
+        end
+        else if (is_store) begin
+            bus_command = WISHBONE_CMD_STORE;
+            bus_addr = rs1_data + imm_S;
+        end
+    end
+end
+
+// The result of the load operation, after sign extending etc
+logic [31:0] load_result;
+
+// XXX Implement
+assign load_result = bus_rdata;
+
+// ==== Next PC logic and branching ====
+logic branch_taken;
+
+always_comb begin
+    branch_taken = 1'b0;
+    
+    case (instr_func3)
+        FUNCT3_BRANCH_BEQ: branch_taken = cond_beq;
+        FUNCT3_BRANCH_BGE: branch_taken = cond_bge;
+        FUNCT3_BRANCH_BGEU: branch_taken = cond_bgeu;
+        FUNCT3_BRANCH_BLT: branch_taken = cond_blt;
+        FUNCT3_BRANCH_BLTU: branch_taken = cond_bltu;
+        FUNCT3_BRANCH_BNE: branch_taken = cond_bne;
+        default: branch_taken = 1'b0;
+    endcase
+end
+
+logic [31:0] pc_next;
+
+always_comb begin
+    pc_next = pc + 32'h4;
+
+    case (1'b1)
+        (is_jal): begin
+            pc_next = pc + imm_J;
+        end
+        (is_jalr): begin
+            pc_next = rs1_data + imm_I;
+        end
+        (is_branch): begin
+            if (branch_taken) begin
+                pc_next = pc + imm_B;
+            end
+        end
+    endcase
+end
+
+// ==== State machine and program counter ====
+typedef enum logic[3:0]
+{
+    CPU_STATE_FETCH         = 4'b0001,
+    CPU_STATE_WAIT_FETCH    = 4'b0010,
+    CPU_STATE_EXECUTE       = 4'b0100,
+    CPU_STATE_WAIT_MEM      = 4'b1000
+} cpu_state_t;
+
+cpu_state_t cpu_state;
 logic [31:0] pc;
 
 initial begin
     pc = 32'h0;
+    cpu_state = CPU_STATE_FETCH;
 end
 
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
         pc <= 32'h0;
+        cpu_state <= CPU_STATE_FETCH;
     end
     else begin
-        // XXX PC logic
+        case (cpu_state)        
+            CPU_STATE_WAIT_FETCH: begin
+                // We wait for the WB masters busy signal to be deasserted.
+                // If that happens, the instruction has finished loading.
+                if (~bus_busy) begin
+                    instruction <= bus_rdata;
+                    rs1_data <= registers[bus_rdata[19:15]];
+                    rs2_data <= registers[bus_rdata[24:20]];
+                    cpu_state <= CPU_STATE_EXECUTE;
+                end
+            end
+            CPU_STATE_EXECUTE: begin
+                // For most instructions, the writeback result has been determined combinational logic.
+                // We just have to wait for memory loads and stores here. But we already assign the new pc.
+                pc <= pc_next;
+
+                // For load/stores, transition from EXECUTE -> WAIT_MEM will initiate a WB bus transaction
+                cpu_state <= (is_load | is_store) ? CPU_STATE_WAIT_MEM : CPU_STATE_FETCH;
+            end
+            CPU_STATE_WAIT_MEM: begin
+                // Wait for memory operation completion
+                if (~bus_busy) begin
+                    cpu_state <= CPU_STATE_FETCH;
+                end
+            end
+            // FETCH
+            default: begin
+                // The next transition will initiate a read from mem[pc].
+                // We have to wait for it to finish in the next state.
+                cpu_state <= CPU_STATE_WAIT_FETCH;
+            end
+        endcase
     end
 end
-
 
 
 endmodule

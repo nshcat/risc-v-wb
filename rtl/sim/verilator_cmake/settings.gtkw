@@ -1,0 +1,75 @@
+[*]
+[*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
+[*] Thu Dec 23 21:04:13 2021
+[*]
+[dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\bld\waveforms.fst"
+[dumpfile_mtime] "Thu Dec 23 21:01:08 2021"
+[dumpfile_size] 17897512
+[savefile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\settings.gtkw"
+[timestart] 1
+[size] 2594 768
+[pos] 788 125
+*-13.000000 3360 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.top_verilator.
+[treeopen] TOP.top_verilator.cpu.
+[sst_width] 357
+[signals_width] 348
+[sst_expanded] 1
+[sst_vpaned_height] 214
+@200
+-Clock
+@28
+TOP.reset_i
+TOP.clk_i
+@200
+-
+-CPU state and instruction
+@100000028
+TOP.top_verilator.cpu.cpu_state[3:0]
+@22
+TOP.top_verilator.cpu.instruction[31:0]
+@100000028
+TOP.top_verilator.cpu.instr_opcode[6:0]
+@200
+-
+-Register file
+@c00022
+TOP.top_verilator.cpu.registers(5)[31:0]
+@28
+(0)TOP.top_verilator.cpu.registers(5)[31:0]
+(1)TOP.top_verilator.cpu.registers(5)[31:0]
+(2)TOP.top_verilator.cpu.registers(5)[31:0]
+(3)TOP.top_verilator.cpu.registers(5)[31:0]
+(4)TOP.top_verilator.cpu.registers(5)[31:0]
+(5)TOP.top_verilator.cpu.registers(5)[31:0]
+(6)TOP.top_verilator.cpu.registers(5)[31:0]
+(7)TOP.top_verilator.cpu.registers(5)[31:0]
+(8)TOP.top_verilator.cpu.registers(5)[31:0]
+(9)TOP.top_verilator.cpu.registers(5)[31:0]
+(10)TOP.top_verilator.cpu.registers(5)[31:0]
+(11)TOP.top_verilator.cpu.registers(5)[31:0]
+(12)TOP.top_verilator.cpu.registers(5)[31:0]
+(13)TOP.top_verilator.cpu.registers(5)[31:0]
+(14)TOP.top_verilator.cpu.registers(5)[31:0]
+(15)TOP.top_verilator.cpu.registers(5)[31:0]
+(16)TOP.top_verilator.cpu.registers(5)[31:0]
+(17)TOP.top_verilator.cpu.registers(5)[31:0]
+(18)TOP.top_verilator.cpu.registers(5)[31:0]
+(19)TOP.top_verilator.cpu.registers(5)[31:0]
+(20)TOP.top_verilator.cpu.registers(5)[31:0]
+(21)TOP.top_verilator.cpu.registers(5)[31:0]
+(22)TOP.top_verilator.cpu.registers(5)[31:0]
+(23)TOP.top_verilator.cpu.registers(5)[31:0]
+(24)TOP.top_verilator.cpu.registers(5)[31:0]
+(25)TOP.top_verilator.cpu.registers(5)[31:0]
+(26)TOP.top_verilator.cpu.registers(5)[31:0]
+(27)TOP.top_verilator.cpu.registers(5)[31:0]
+(28)TOP.top_verilator.cpu.registers(5)[31:0]
+(29)TOP.top_verilator.cpu.registers(5)[31:0]
+(30)TOP.top_verilator.cpu.registers(5)[31:0]
+(31)TOP.top_verilator.cpu.registers(5)[31:0]
+@1401200
+-group_end
+[pattern_trace] 1
+[pattern_trace] 0

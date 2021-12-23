@@ -1,0 +1,6 @@
+digraph cpu_fsm {
+	rankdir="LR";
+	
+	node[shape=Mrecord]
+	S1[label="{}"];
+}
