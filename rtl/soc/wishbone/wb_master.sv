@@ -28,12 +28,10 @@ typedef enum logic [1:0]
 
 logic [31:0] read_data;
 logic busy;
-logic [1:0] counter;
 state_t state;
 
 initial begin
     read_data = 32'h0;
-    counter = 2'h0;
     busy = 1'b0;
     state = STATE_WAIT_FOR_CMD;
 end
@@ -42,29 +40,18 @@ always_ff @(posedge clk_in) begin
     if (~reset_in) begin
         read_data <= 32'h0;
         busy <= 1'b0;
-        counter <= 2'h0;
         state <= STATE_WAIT_FOR_CMD;
     end
     else begin
         case (state)  
             STATE_DO_READ: begin
-                if (counter == 2'b10) begin
-                    read_data <= 32'h00128293;   // addi t0, t0, 0x1
-                    busy <= 1'b0;
-                    state <= STATE_WAIT_FOR_CMD;
-                end
-                else begin
-                    counter <= counter  + 2'b1;
-                end
+                read_data <= 32'h00128293;   // addi t0, t0, 0x1
+                busy <= 1'b0;
+                state <= STATE_WAIT_FOR_CMD;
             end
             STATE_DO_WRITE: begin
-                if (counter == 2'b10) begin
-                    busy <= 1'b0;
-                    state <= STATE_WAIT_FOR_CMD;
-                end
-                else begin
-                    counter <= counter  + 2'b1;
-                end
+                busy <= 1'b0;
+                state <= STATE_WAIT_FOR_CMD;
             end
             // STATE_WAIT_FOR_CMD
             default: begin
@@ -72,7 +59,6 @@ always_ff @(posedge clk_in) begin
                 if (cmd_in != WISHBONE_CMD_NONE) begin
                     // We are busy now
                     busy <= 1'b1;
-                    counter <= 2'h0;
                     state <= (cmd_in == WISHBONE_CMD_LOAD) ? STATE_DO_READ : STATE_DO_WRITE;
                 end
             end

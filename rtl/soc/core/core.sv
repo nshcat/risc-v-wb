@@ -59,34 +59,37 @@ typedef enum logic [2:0]
 // The currently latched instruction
 logic [31:0] instruction;
 
-opcode_t instr_opcode = instruction[6:0];
-logic [4:0] instr_rs1 = instruction[19:15];
-logic [4:0] instr_rs2 = instruction[24:20];
-logic [4:0] instr_rd = instruction[11:7];
-logic [4:0] instr_shamt = instruction[24:20];
-logic [2:0] instr_func3 = instruction[14:12];
-logic [6:0] instr_func7 = instruction[31:25];
+initial begin
+    instruction = 32'h0;
+end
 
-logic is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
-logic is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
-logic is_arith = (is_arith_reg | is_arith_imm);
-logic is_branch = (instr_opcode == OPCODE_BRANCH);
-logic is_jal = (instr_opcode == OPCODE_JAL);
-logic is_jalr = (instr_opcode == OPCODE_JALR);
-logic is_system = (instr_opcode == OPCODE_SYSTEM);
-logic is_lui = (instr_opcode == OPCODE_LUI);
-logic is_auipc = (instr_opcode == OPCODE_AUIPC);
-logic is_load = (instr_opcode == OPCODE_LOAD);
-logic is_store = (instr_opcode == OPCODE_STORE);
+opcode_t instr_opcode = instruction[6:0];
+wire [4:0] instr_rs1 = instruction[19:15];
+wire [4:0] instr_rs2 = instruction[24:20];
+wire [4:0] instr_rd = instruction[11:7];
+wire [4:0] instr_shamt = instruction[24:20];
+wire [2:0] instr_func3 = instruction[14:12];
+wire [6:0] instr_func7 = instruction[31:25];
+
+wire is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
+wire is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
+wire is_arith = (is_arith_reg | is_arith_imm);
+wire is_branch = (instr_opcode == OPCODE_BRANCH);
+wire is_jal = (instr_opcode == OPCODE_JAL);
+wire is_jalr = (instr_opcode == OPCODE_JALR);
+wire is_system = (instr_opcode == OPCODE_SYSTEM);
+wire is_lui = (instr_opcode == OPCODE_LUI);
+wire is_auipc = (instr_opcode == OPCODE_AUIPC);
+wire is_load = (instr_opcode == OPCODE_LOAD);
+wire is_store = (instr_opcode == OPCODE_STORE);
 
 // IMM extraction
-logic imm_sign = instruction[31];
-logic [31:0] imm_I = { (imm_sign ? 21'h1FFFFF : 21'h0), instruction[30:20] };
-logic [31:0] imm_S = { (imm_sign ? 21'h1FFFFF : 21'h0), instruction[30:25], instruction[11:8], instruction[7] };
-logic [31:0] imm_B = { (imm_sign ? 20'hFFFFF : 20'h0), instruction[7], instruction[30:25], instruction[11:8], 1'b0 };
-logic [31:0] imm_U = { instruction[31:12], 12'h0 };
-logic [31:0] imm_J = { (imm_sign ? 12'hFFF : 12'h0), instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0 };
-
+wire imm_sign = instruction[31];
+wire [31:0] imm_I = { (imm_sign ? 21'h1FFFFF : 21'h0), instruction[30:20] };
+wire [31:0] imm_S = { (imm_sign ? 21'h1FFFFF : 21'h0), instruction[30:25], instruction[11:8], instruction[7] };
+wire [31:0] imm_B = { (imm_sign ? 20'hFFFFF : 20'h0), instruction[7], instruction[30:25], instruction[11:8], 1'b0 };
+wire [31:0] imm_U = { instruction[31:12], 12'h0 };
+wire [31:0] imm_J = { (imm_sign ? 12'hFFF : 12'h0), instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0 };
 
 // ==== Register file ====
 
@@ -103,6 +106,9 @@ initial begin
     integer i;
     for (i = 0; i < 32; i = i + 1)
         registers[i] = 32'h0;
+
+    rs1_data = 32'h0;
+    rs2_data = 32'h0;
 end
 
 // Register writeback and reset
@@ -122,7 +128,7 @@ always_ff @(posedge clk_in) begin
 end
 
 // Stores and branches dont do writeback
-logic do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM));
+wire do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM));
 
 // ==== ALU operations ====
 
@@ -132,35 +138,35 @@ logic do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `
 // Loads use imm_I as well, so we can reuse the adder: rd <- mem[rs1+imm_I]
 
 // First input is always reg[rs1]
-logic [31:0] arith_in1 = rs1_data;
+wire [31:0] arith_in1 = rs1_data;
 
 // For branches and R type arithmetic instructions, the second ALU input is reg[rs2], for ALUimm, Load or JALR its I type IMM value
 // We use this for the branch predicate evaluation as well, and JALR.
-logic [31:0] arith_in2 = (is_arith_reg | is_branch) ? rs2_data : imm_I;
+wire [31:0] arith_in2 = (is_arith_reg | is_branch) ? rs2_data : imm_I;
 
 // Adder used for arithmetic operations, memory
-logic [31:0] arith_add = arith_in1 + arith_in2;
+wire [31:0] arith_add = arith_in1 + arith_in2;
 
 // Subtraction used for both branch condition checking, and as ALU result for sub/subi
-logic arith_C;
-logic [31:0] arith_sub;
+wire arith_C;
+wire [31:0] arith_sub;
 assign {arith_C, arith_sub} = arith_in1 - arith_in2;
-logic arith_Z = (arith_sub == 32'h0) ? 1'b1 : 1'b0;
-logic arith_V = (arith_in1[31] & !arith_in2[31] & !arith_sub[31]) | (!arith_in1[31] & arith_in2[31] & arith_sub[31]);
-logic arith_N = arith_sub[31];
-logic arith_S = arith_N ^ arith_V;
+wire arith_Z = (arith_sub == 32'h0) ? 1'b1 : 1'b0;
+wire arith_V = (arith_in1[31] & !arith_in2[31] & !arith_sub[31]) | (!arith_in1[31] & arith_in2[31] & arith_sub[31]);
+wire arith_N = arith_sub[31];
+wire arith_S = arith_N ^ arith_V;
 
 // Branch conditions, retrieved from subtraction result
-logic cond_beq = arith_Z;
-logic cond_bne = ~arith_Z;
-logic cond_blt = arith_S;
-logic cond_bge = ~arith_S;
-logic cond_bltu = arith_C;
-logic cond_bgeu = ~arith_C;
+wire cond_beq = arith_Z;
+wire cond_bne = ~arith_Z;
+wire cond_blt = arith_S;
+wire cond_bge = ~arith_S;
+wire cond_bltu = arith_C;
+wire cond_bgeu = ~arith_C;
 
 // ALU output. This is only used if isArith is true.
 logic [31:0] arith_result;
-logic [31:0] arith_right_shift = (arith_in1 >> (is_arith_imm ? { 27'h0, instr_shamt } : arith_in2));
+wire [31:0] arith_right_shift = (arith_in1 >> (is_arith_imm ? { 27'h0, instr_shamt } : arith_in2));
 
 // ALU output calculation
 always_comb begin

@@ -51,8 +51,10 @@ void simulate(const std::unique_ptr<top_module_t>& top)
     // Dump trace data for this cycle
 	tfp->dump(main_time);
 
-    // Simulate until $finish
-    while (!Verilated::gotFinish())
+	const auto maxCycles = 100;
+
+    // Simulate until $finish, or maximum number of cycles reached
+    while (!Verilated::gotFinish() && (main_time / 10) < maxCycles)
 	{
         main_time++;  // Time passes...
 			
