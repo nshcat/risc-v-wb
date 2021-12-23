@@ -127,8 +127,25 @@ always_ff @(posedge clk_in) begin
     end
 end
 
-// Stores and branches dont do writeback
-wire do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM));
+// Write back control signal
+//wire do_writeback = ~(is_store | is_branch) & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM));
+logic do_writeback;
+
+always_comb begin
+    do_writeback = 1'b0;
+
+    // Stores and branches dont do writeback
+    if (~(is_branch | is_store)) begin
+        // Only do write back when reading is finished
+        if (is_load & `IN_STATE(CPU_STATE_WAIT_MEM) & ~bus_busy) begin
+            do_writeback = 1'b1;
+        end
+
+        if (~is_load & `IN_STATE(CPU_STATE_EXECUTE)) begin
+            do_writeback = 1'b1;
+        end
+    end
+end
 
 // ==== ALU operations ====
 

@@ -45,7 +45,8 @@ always_ff @(posedge clk_in) begin
     else begin
         case (state)  
             STATE_DO_READ: begin
-                read_data <= 32'h00128293;   // addi t0, t0, 0x1
+                //read_data <= 32'h00128293;   // addi t0, t0, 0x1
+                read_data <= 32'h0002A283;     // lw t0, 0(t0)
                 busy <= 1'b0;
                 state <= STATE_WAIT_FOR_CMD;
             end
