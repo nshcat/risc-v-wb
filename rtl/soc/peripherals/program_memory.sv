@@ -36,8 +36,21 @@ always_ff @(posedge clk_in) begin
 end
 
 // Ack
-assign bus_slave.ack = bus_slave.stb & ~err;
+logic ack;
+initial begin
+    ack = 1'h0;
+end
 
+always_ff @(posedge(clk_in)) begin
+    if (~reset_in) begin
+        ack <= 1'h0;
+    end
+    else begin
+        ack <= bus_slave.stb & ~err;
+    end
+end
+
+assign bus_slave.ack = ack & bus_slave.stb & ~err;
 assign bus_slave.rdata = rdata;
 assign bus_slave.err = err;
 

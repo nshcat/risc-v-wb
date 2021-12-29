@@ -1,19 +1,18 @@
 [*]
 [*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
-[*] Wed Dec 29 22:33:40 2021
+[*] Wed Dec 29 22:53:37 2021
 [*]
 [dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\bld\waveforms.fst"
-[dumpfile_mtime] "Wed Dec 29 22:32:53 2021"
-[dumpfile_size] 3093
+[dumpfile_mtime] "Wed Dec 29 22:52:10 2021"
+[dumpfile_size] 3505
 [savefile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\settings.gtkw"
-[timestart] 32
+[timestart] 1
 [size] 2222 886
-[pos] 643 138
-*-4.000000 46 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] 1209 78
+*-4.000000 68 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.top_verilator.
 [treeopen] TOP.top_verilator.soc.
-[treeopen] TOP.top_verilator.soc.cpu.
 [sst_width] 357
 [signals_width] 326
 [sst_expanded] 1
@@ -32,10 +31,79 @@ TOP.top_verilator.soc.cpu.pc[31:0]
 TOP.top_verilator.soc.cpu.cpu_state[3:0]
 @22
 TOP.top_verilator.soc.cpu.instruction[31:0]
-@100000029
+@100000028
 TOP.top_verilator.soc.cpu.instr_opcode[6:0]
 @200
 -
 -Register file
+@c00023
+[color] 5
++{t0} TOP.top_verilator.soc.cpu.registers(5)[31:0]
+@29
+(0)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(1)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(2)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(3)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(4)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(5)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(6)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(7)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(8)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(9)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(10)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(11)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(12)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(13)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(14)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(15)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(16)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(17)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(18)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(19)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(20)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(21)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(22)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(23)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(24)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(25)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(26)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(27)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(28)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(29)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(30)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+(31)TOP.top_verilator.soc.cpu.registers(5)[31:0]
+@1401201
+-group_end
+@200
+-
+-Core Bus Master
+@100000028
+[color] 3
+TOP.top_verilator.soc.cpu.bus.state[1:0]
+@200
+-
+-SoC Wishbone Bus
+@22
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.addr[31:0]
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.rdata[31:0]
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.wdata[31:0]
+@28
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.we
+@22
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.sel[3:0]
+@28
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.stb
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.cyc
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.ack
+[color] 3
+TOP.top_verilator.soc.cpu.bus_master.err
 [pattern_trace] 1
 [pattern_trace] 0
