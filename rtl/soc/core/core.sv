@@ -1,9 +1,10 @@
 `include "wb_master.vh"
-`include "wb_bus.vh"
 
 module core(
     input logic clk_in,
-    input logic reset_in
+    input logic reset_in,
+
+    wb_bus.master bus_master
 );
 
 // ==== Macros ====
@@ -266,6 +267,17 @@ logic [31:0] bus_addr;
 wb_command_t bus_command;
 logic bus_busy;
 
+// XXX Endianness swap, etc etc
+wire [31:0] bus_rdata_swapped = {
+    bus_rdata[ 7: 0],
+    bus_rdata[15: 8],
+    bus_rdata[23:16],
+    bus_rdata[31:24]
+};
+
+// XXX Error management
+logic bus_error;
+
 wb_master bus(
     .clk_in(clk_in),
     .reset_in(reset_in),
@@ -275,7 +287,9 @@ wb_master bus(
     .rdata_out(bus_rdata),
     .wdata_in(bus_wdata),
     .wmask_in(bus_wmask),
-    .addr_in(bus_addr)
+    .addr_in(bus_addr),
+    .err_out(bus_error),
+    .bus_master(bus_master)
 );
 
 
@@ -317,7 +331,7 @@ end
 logic [31:0] load_result;
 
 // XXX Implement
-assign load_result = bus_rdata;
+assign load_result = bus_rdata_swapped;
 
 // ==== Next PC logic and branching ====
 logic branch_taken;
@@ -384,9 +398,9 @@ always_ff @(posedge clk_in) begin
                 // We wait for the WB masters busy signal to be deasserted.
                 // If that happens, the instruction has finished loading.
                 if (~bus_busy) begin
-                    instruction <= bus_rdata;
-                    rs1_data <= registers[bus_rdata[19:15]];
-                    rs2_data <= registers[bus_rdata[24:20]];
+                    instruction <= bus_rdata_swapped;
+                    rs1_data <= registers[bus_rdata_swapped[19:15]];
+                    rs2_data <= registers[bus_rdata_swapped[24:20]];
                     cpu_state <= CPU_STATE_EXECUTE;
                 end
             end

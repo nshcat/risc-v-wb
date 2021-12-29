@@ -9,31 +9,46 @@ module wb_master(
     // Interface to core
     input wb_command_t cmd_in,
     output logic busy_out,
+    output logic err_out,
 
     input logic [31:0] addr_in,
     output logic [31:0] rdata_out,
     input logic [31:0] wdata_in,
-    input logic [3:0] wmask_in
+    input logic [3:0] wmask_in,
 
     // Wishbone interface
-    // XXX
+    wb_bus.master bus_master
 );
 
 typedef enum logic [1:0]
 {  
     STATE_WAIT_FOR_CMD = 2'b00,
-    STATE_DO_READ      = 2'b01,
-    STATE_DO_WRITE     = 2'b10
+    STATE_WAIT_ACK     = 2'b01
 } state_t;
 
+logic [31:0] write_data;
+logic [3:0] write_mask;
 logic [31:0] read_data;
-logic busy;
+logic [31:0] address;
+logic busy, error;
 state_t state;
+
+// TODO maybe have these be determined combinationally?
+// Or can you directly <= to interface outputs?
+// Or all WB signals combinationally derived from current state?
+logic we, stb, cyc;
 
 initial begin
     read_data = 32'h0;
     busy = 1'b0;
+    error = 1'b0;
     state = STATE_WAIT_FOR_CMD;
+    address = 32'h0;
+    write_mask = 4'h0;
+    write_data = 32'h0;
+    we = 1'h0;
+    stb = 1'h0;
+    cyc = 1'h0;
 end
 
 always_ff @(posedge clk_in) begin
@@ -41,18 +56,43 @@ always_ff @(posedge clk_in) begin
         read_data <= 32'h0;
         busy <= 1'b0;
         state <= STATE_WAIT_FOR_CMD;
+        address <= 32'h0;
+        write_mask <= 4'h0;
+        write_data <= 32'h0;
+        we <= 1'h0;
+        stb <= 1'h0;
+        cyc <= 1'h0;
+        error <= 1'h0;
     end
     else begin
         case (state)  
-            STATE_DO_READ: begin
-                //read_data <= 32'h00128293;   // addi t0, t0, 0x1
-                read_data <= 32'h0002A283;     // lw t0, 0(t0)
-                busy <= 1'b0;
-                state <= STATE_WAIT_FOR_CMD;
-            end
-            STATE_DO_WRITE: begin
-                busy <= 1'b0;
-                state <= STATE_WAIT_FOR_CMD;
+            STATE_WAIT_ACK: begin
+                // Check for errors
+                if (bus_master.err) begin
+                    // Set error indicator. Will be cleared upon next command.
+                    error <= 1'b1;
+
+                    // Transaction cancelled
+                    stb <= 1'b0;
+                    cyc <= 1'b0;
+                    we <= 1'b0;
+                    state <= STATE_WAIT_FOR_CMD;
+                    busy <= 1'b0;
+                end
+                // Check for slaves ack
+                else if (bus_master.ack) begin
+                    if (~we) begin
+                        // This was a load, retrieve read data from bus
+                        read_data <= bus_master.rdata;
+                    end
+
+                    // Transaction is complete, deassert control lines
+                    stb <= 1'b0;
+                    cyc <= 1'b0;
+                    we <= 1'b0;
+                    state <= STATE_WAIT_FOR_CMD;
+                    busy <= 1'b0;
+                end
             end
             // STATE_WAIT_FOR_CMD
             default: begin
@@ -60,7 +100,22 @@ always_ff @(posedge clk_in) begin
                 if (cmd_in != WISHBONE_CMD_NONE) begin
                     // We are busy now
                     busy <= 1'b1;
-                    state <= (cmd_in == WISHBONE_CMD_LOAD) ? STATE_DO_READ : STATE_DO_WRITE;
+
+                    // Latch task data
+                    address <= addr_in;
+                    write_data <= wdata_in;
+                    write_mask <= wmask_in;
+
+                    // Clear error indicator
+                    error <= 1'h0;
+
+                    // Start transaction
+                    we <= (cmd_in == WISHBONE_CMD_LOAD) ? 1'b0 : 1'b1;
+                    stb <= 1'b1;
+                    cyc <= 1'b1;
+
+                    // Wait for slave to ack transaction
+                    state <= STATE_WAIT_ACK;
                 end
             end
         endcase
@@ -69,7 +124,15 @@ end
 
 assign rdata_out = read_data;
 assign busy_out = busy;
+assign err_out = error;
 
-// XXX WIP implementation
+// Bus assignments
+assign bus_master.addr = address;
+assign bus_master.wdata = write_data;
+assign bus_master.sel = we ? write_mask : 4'b1111; // Always read full words
+assign bus_master.we = we;
+assign bus_master.stb = stb;
+assign bus_master.cyc = cyc;
+
 
 endmodule

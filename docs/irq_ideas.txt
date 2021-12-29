@@ -1,0 +1,5 @@
+Have only one interrupt in hardware, but cause contains details.
+boot.S can jump to more detailed handlers.
+Typical sources:
+ - general fault (bus error, invalid instruction
+ - external interupt (timer, etc. Code has to query the EIC)
