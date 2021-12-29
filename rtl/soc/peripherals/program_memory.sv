@@ -14,7 +14,7 @@ logic [31:0] memory [1023:0];
 
 initial begin
     for (int i = 0; i < 1024; i++)
-        memory[i] = 32'h00128293;
+        memory[i] = 32'h93821200;
 end
 
 
@@ -36,22 +36,9 @@ always_ff @(posedge clk_in) begin
 end
 
 // Ack
-logic ack;
-initial begin
-    ack = 1'h0;
-end
-
-always_ff @(posedge clk_in) begin
-    if (~reset_in) begin
-        ack <= 1'h0;
-    end
-    else begin
-        ack <= bus_slave.stb & ~err;
-    end
-end
+assign bus_slave.ack = bus_slave.stb & ~err;
 
 assign bus_slave.rdata = rdata;
-assign bus_slave.ack = ack;
 assign bus_slave.err = err;
 
 endmodule
