@@ -19,7 +19,7 @@ end
 logic select [N-1:0];
 genvar j;
 for (j = 0; j < N; j++) begin
-    assign select[j] = (bus_in.addr >= addr_begin[j] && bus_in.addr <= addr_end[j]);
+    assign select[j] = (bus_in.addr >= addr_begin[j] && bus_in.addr <= addr_end[j]) & bus_in.cyc & bus_in.stb;
 end
 
 // Address is valid if it belongs to one of the slaves of this interconnect.
@@ -48,7 +48,8 @@ end
 // of the slaves connected to the interconnect, or if any of the slaves signalled an error.
 logic bus_error;
 always_comb begin
-    bus_error = ~addr_valid;
+    // Error only makes sense when the bus is actually used
+    bus_error = ~addr_valid & bus_in.cyc & bus_in.stb;
 
     for(int i = 0; i < N; i++)
         bus_error |= (select[i] & err_i[i]);
