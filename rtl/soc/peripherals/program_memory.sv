@@ -10,13 +10,10 @@ module program_memory #(
 // Error logic. We dont support writes or misaligned reads
 wire err = (bus_slave.we || bus_slave.addr[1:0] != 2'h0);
 
-logic [31:0] memory [1023:0];
+// 12 kb of program flash
+logic [31:0] memory [0:3071];
 
-initial begin
-    for (int i = 0; i < 1024; i++)
-        memory[i] = 32'h93821200;
-end
-
+initial $readmemh("flash.txt", memory);
 
 // Reading
 logic [31:0] rdata;
@@ -24,14 +21,15 @@ initial begin
     rdata = 32'h0;
 end
 
-wire [31:0] local_addr = bus_slave.addr - BaseAddr;
+wire [31:0] absolute_addr = (bus_slave.addr - BaseAddr);
+wire [11:0] word_addr = absolute_addr[13:2];    // Word-based address
 
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
         rdata <= 32'h0;
     end
     else if (bus_slave.stb) begin
-        rdata <= memory[local_addr];
+        rdata <= memory[word_addr];
     end
 end
 

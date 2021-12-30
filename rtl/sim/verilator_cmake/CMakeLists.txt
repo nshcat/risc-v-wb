@@ -12,6 +12,14 @@ verilate(socsim
 set_property(TARGET socsim PROPERTY CXX_STANDARD 17)
 set_property(TARGET socsim PROPERTY CXX_STANDARD_REQUIRED ON)
 
+add_custom_target(copy-flash ALL
+	COMMAND ${CMAKE_COMMAND} -E copy 
+	${CMAKE_CURRENT_SOURCE_DIR}/../../memory/flash.txt
+	${CMAKE_CURRENT_BINARY_DIR}/flash.txt
+)
+
+add_dependencies(socsim copy-flash)
+
 set(GTKWAVEPATH "Y:/riscv-toolchain/gtkwave64/bin/gtkwave.exe")
 	
 add_custom_target(sim

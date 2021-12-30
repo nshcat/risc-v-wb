@@ -19,7 +19,7 @@ core cpu(
 wb_interconnect #(
     .N(1),
     .AddrRanges({
-        32'h0, 32'h400      // Program memory
+        32'h0, 32'h2FFF      // Program memory
     })
 ) inter(
     .bus_in(core_bus),
