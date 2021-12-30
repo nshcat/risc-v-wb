@@ -38,8 +38,8 @@ function opcode_t castToOpcode(logic [6:0] value);
         7'b1100111: castToOpcode = OPCODE_JALR;
         7'b0000011: castToOpcode = OPCODE_LOAD;
         7'b0100011: castToOpcode = OPCODE_STORE;
-        7'b0110111: castToOpcode = OPCODE_AUIPC;
-        7'b0010111: castToOpcode = OPCODE_JAL;  
+        7'b0110111: castToOpcode = OPCODE_LUI;
+        7'b0010111: castToOpcode = OPCODE_AUIPC;  
         default: castToOpcode = OPCODE_SYSTEM;  
     endcase
 endfunction
