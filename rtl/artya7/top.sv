@@ -41,6 +41,13 @@ debouncer reset_debouncer(
 // The main reset signal
 logic reset = ~reset_rising & locked;
 
+// SoC instance
+soc soc(
+    .clk_in(slow_clk),
+    .reset_in(reset)
+);
+
+// Debug stuff
 logic [2:0] led_state;
 initial led_state = 3'h00;
 assign { led0_r_out, led0_g_out, led0_b_out } = led_state;

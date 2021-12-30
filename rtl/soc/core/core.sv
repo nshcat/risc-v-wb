@@ -23,9 +23,28 @@ typedef enum logic[6:0]
     OPCODE_LUI          = 7'b0110111,   // rd <- Uimm
     OPCODE_AUIPC        = 7'b0010111,   // rd <- PC + Uimm
     OPCODE_SYSTEM       = 7'b1110011    // rd <- CSR <- rs1/uimm5
+
+    // XXX OPCODE_INVALID
 } opcode_t;
 
-// Arithmetic interpretation of FUNCT3 instruction component
+// Vivado doesnt support casting raw values to their enum representations, so we do have to do
+// the casting manually here
+function opcode_t castToOpcode(logic [6:0] value);
+    case(value)
+        7'b0110011: castToOpcode = OPCODE_ARITH_R;
+        7'b0010011: castToOpcode = OPCODE_ARITH_I;
+        7'b1100011: castToOpcode = OPCODE_BRANCH;
+        7'b1101111: castToOpcode = OPCODE_JAL;
+        7'b1100111: castToOpcode = OPCODE_JALR;
+        7'b0000011: castToOpcode = OPCODE_LOAD;
+        7'b0100011: castToOpcode = OPCODE_STORE;
+        7'b0110111: castToOpcode = OPCODE_AUIPC;
+        7'b0010111: castToOpcode = OPCODE_JAL;  
+        default: castToOpcode = OPCODE_SYSTEM;  
+    endcase
+endfunction
+
+// Arithmetic and Branch interpretation of FUNCT3 instruction component
 typedef enum logic [2:0]
 {
     FUNCT3_ARITH_ADDSUB     = 3'b000,
@@ -38,12 +57,18 @@ typedef enum logic [2:0]
     FUNCT3_ARITH_AND        = 3'b111
 } funct3_arith_t;
 
-// Funct7 field constants
-typedef enum logic [6:0]
-{
-    FUNCT7_DEFAULT          = 7'b0,
-    FUNCT7_ALT              = 7'b0100000        // Alternative operation, SUB instead of ADD, arithmetic shift
-} funct7_t;
+function funct3_arith_t castToFunct3Arith(logic [2:0] value);
+    case(value)
+        3'b000: castToFunct3Arith = FUNCT3_ARITH_ADDSUB;
+        3'b001: castToFunct3Arith = FUNCT3_ARITH_SHIFTL;
+        3'b101: castToFunct3Arith = FUNCT3_ARITH_SHIFTR;
+        3'b010: castToFunct3Arith = FUNCT3_ARITH_SLT;
+        3'b011: castToFunct3Arith = FUNCT3_ARITH_SLTU;
+        3'b100: castToFunct3Arith = FUNCT3_ARITH_XOR;
+        3'b110: castToFunct3Arith = FUNCT3_ARITH_OR;
+        default: castToFunct3Arith = FUNCT3_ARITH_AND;
+    endcase
+endfunction
 
 typedef enum logic [2:0]
 {
@@ -55,6 +80,32 @@ typedef enum logic [2:0]
     FUNCT3_BRANCH_BGEU      = 3'b111
 } funct3_branch_t;
 
+function funct3_branch_t castToFunct3Branch(logic [2:0] value);
+    case(value)
+        3'b000: castToFunct3Branch = FUNCT3_BRANCH_BEQ;
+        3'b001: castToFunct3Branch = FUNCT3_BRANCH_BNE;
+        3'b100: castToFunct3Branch = FUNCT3_BRANCH_BLT;
+        3'b101: castToFunct3Branch = FUNCT3_BRANCH_BGE;
+        3'b110: castToFunct3Branch = FUNCT3_BRANCH_BLTU;
+        default: castToFunct3Branch = FUNCT3_BRANCH_BGEU;  
+    endcase
+endfunction
+
+// Funct7 field constants
+typedef enum logic [6:0]
+{
+    FUNCT7_DEFAULT          = 7'b0,
+    FUNCT7_ALT              = 7'b0100000        // Alternative operation, SUB instead of ADD, arithmetic shift
+} funct7_t;
+
+function funct7_t castToFunct7(logic [6:0] value);
+    case(value)
+        7'b0100000: castToFunct7 = FUNCT7_ALT;
+        default: castToFunct7 = FUNCT7_DEFAULT;
+    endcase
+endfunction
+
+
 // ==== Instruction decoding ====
 
 // The currently latched instruction
@@ -64,13 +115,24 @@ initial begin
     instruction = 32'h0;
 end
 
-opcode_t instr_opcode = instruction[6:0];
 wire [4:0] instr_rs1 = instruction[19:15];
 wire [4:0] instr_rs2 = instruction[24:20];
 wire [4:0] instr_rd = instruction[11:7];
 wire [4:0] instr_shamt = instruction[24:20];
 wire [2:0] instr_func3 = instruction[14:12];
-wire [6:0] instr_func7 = instruction[31:25];
+
+// For some reason, direct continuous assignment doesnt work with enums and function calls..
+opcode_t instr_opcode;
+assign instr_opcode = castToOpcode(instruction[6:0]);
+
+funct7_t instr_func7;
+assign instr_func7 = castToFunct7(instruction[31:25]);
+
+funct3_branch_t instr_func3_branch;
+assign instr_func3_branch = castToFunct3Branch(instr_func3);
+
+funct3_arith_t instr_func3_arith;
+assign instr_func3_arith = castToFunct3Arith(instr_func3);
 
 wire is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
 wire is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
@@ -191,7 +253,7 @@ always_comb begin
     arith_result = 32'h0;
     
     // FUNCT3 field of instruction describes which operation to perform
-    case (instr_func3)
+    case (instr_func3_arith)
         FUNCT3_ARITH_ADDSUB: begin
             // For register arithmetic instruction, funct7 decides whether its addition or subtraction
             // For immediate arithmetic instructions, no subtraction instruction is provided
@@ -339,7 +401,7 @@ logic branch_taken;
 always_comb begin
     branch_taken = 1'b0;
     
-    case (instr_func3)
+    case (instr_func3_branch)
         FUNCT3_BRANCH_BEQ: branch_taken = cond_beq;
         FUNCT3_BRANCH_BGE: branch_taken = cond_bge;
         FUNCT3_BRANCH_BGEU: branch_taken = cond_bgeu;

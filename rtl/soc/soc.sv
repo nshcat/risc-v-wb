@@ -3,15 +3,19 @@ module soc(
     input logic reset_in
 );
 
-// CPU Core
+// Main bus
+wb_bus core_bus();
+
+// All Interconnect<->Peripheral busses
+wb_bus peripheral_busses [1]();
+
+// CPU Core and main interconnect
 core cpu(
     .clk_in(clk_in),
     .reset_in(reset_in),
     .bus_master(core_bus)
 );
 
-// Main bus and interconnect
-wb_bus core_bus();
 wb_interconnect #(
     .N(1),
     .AddrRanges({
@@ -23,10 +27,6 @@ wb_interconnect #(
 );
 
 // Peripherals
-
-// All Interconnect<->Peripheral busses
-wb_bus peripheral_busses [0:0];
-
 program_memory pmem(
     .clk_in(clk_in),
     .reset_in(reset_in),
