@@ -13,7 +13,11 @@ wire err = (bus_slave.we || bus_slave.addr[1:0] != 2'h0);
 // 12 kb of program flash
 logic [31:0] memory [0:3071];
 
+`ifdef VERILATOR
 initial $readmemh("flash.txt", memory);
+`else
+initial $readmemh("./../../memory/flash.txt", memory);
+`endif
 
 // Reading
 logic [31:0] rdata;
