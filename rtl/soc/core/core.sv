@@ -451,19 +451,22 @@ always_comb begin
         bus_command = WISHBONE_CMD_LOAD;
         bus_addr = pc;
     end
-    else if (`IN_STATE(CPU_STATE_EXECUTE)) begin
-        // When transitioning from EXECUTE -> WAITMEM, we want to either do a load or a store depending on the 
-        // instruction
+    else if (`IN_STATE(CPU_STATE_EXECUTE) || `IN_STATE(CPU_STATE_WAIT_MEM)) begin
+        
         if (is_load) begin
-            bus_command = WISHBONE_CMD_LOAD;
             bus_addr = rs1_data + imm_I;
         end
         else if (is_store) begin
-            bus_command = WISHBONE_CMD_STORE;
             bus_addr = rs1_data + imm_S;
         end
+
+        // When transitioning from EXECUTE -> WAITMEM, we want to either do a load or a store depending on the 
+        // instruction
+        if (`IN_STATE(CPU_STATE_EXECUTE)) begin
+            bus_command = is_load ? WISHBONE_CMD_LOAD : WISHBONE_CMD_STORE;
+        end
     end
-    else if (`IN_STATE(CPU_STATE_WAIT_MEM)) begin
+    else if () begin
         if (is_load) begin
             bus_addr = rs1_data + imm_I;
         end
