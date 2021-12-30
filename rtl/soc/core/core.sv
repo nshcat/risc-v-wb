@@ -91,6 +91,21 @@ function funct3_branch_t castToFunct3Branch(logic [2:0] value);
     endcase
 endfunction
 
+typedef enum logic [2:0]
+{
+    FUNCT3_MEM_BYTE         = 3'b000,
+    FUNCT3_MEM_HALF_WORD    = 3'b001,
+    FUNCT3_MEM_WORD         = 3'b010
+} funct3_mem_t;
+
+function funct3_mem_t castToFunct3Mem(logic [1:0] value);
+    case(value)
+        2'b00: castToFunct3Mem = FUNCT3_MEM_BYTE;
+        2'b01: castToFunct3Mem = FUNCT3_MEM_HALF_WORD;
+        default: castToFunct3Mem = FUNCT3_MEM_WORD;  
+    endcase
+endfunction
+
 // Funct7 field constants
 typedef enum logic [6:0]
 {
@@ -120,6 +135,7 @@ wire [4:0] instr_rs2 = instruction[24:20];
 wire [4:0] instr_rd = instruction[11:7];
 wire [4:0] instr_shamt = instruction[24:20];
 wire [2:0] instr_func3 = instruction[14:12];
+wire instr_mem_signed = ~instr_func3[2];
 
 // For some reason, direct continuous assignment doesnt work with enums and function calls..
 opcode_t instr_opcode;
@@ -133,6 +149,9 @@ assign instr_func3_branch = castToFunct3Branch(instr_func3);
 
 funct3_arith_t instr_func3_arith;
 assign instr_func3_arith = castToFunct3Arith(instr_func3);
+
+funct3_mem_t instr_func3_mem;
+assign instr_func3_mem = castToFunct3Mem(instr_func3[1:0]);
 
 wire is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
 wire is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
@@ -325,17 +344,13 @@ end
 logic [31:0] bus_rdata;
 logic [31:0] bus_wdata;
 logic [3:0] bus_wmask;
+logic [31:0] bus_word_addr;
 logic [31:0] bus_addr;
 wb_command_t bus_command;
 logic bus_busy;
 
-// XXX Endianness swap, etc etc
-wire [31:0] bus_rdata_swapped = {
-    bus_rdata[ 7: 0],
-    bus_rdata[15: 8],
-    bus_rdata[23:16],
-    bus_rdata[31:24]
-};
+// The bus only accepts word addressing
+assign bus_word_addr = { bus_addr[31:2], 2'h0 };
 
 // XXX Error management
 logic bus_error;
@@ -349,7 +364,7 @@ wb_master bus(
     .rdata_out(bus_rdata),
     .wdata_in(bus_wdata),
     .wmask_in(bus_wmask),
-    .addr_in(bus_addr),
+    .addr_in(bus_word_addr),
     .err_out(bus_error),
     .bus_master(bus_master)
 );
@@ -357,12 +372,73 @@ wb_master bus(
 
 // For stores, regs[rs2] is written to memory
 // It has to be valid on state transition from EXECUTE to WAIT_MEM, so we keep the assignment valid for both states.
-assign bus_wdata = (is_store & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM)))
+wire [31:0] store_data = (is_store & (`IN_STATE(CPU_STATE_EXECUTE) | `IN_STATE(CPU_STATE_WAIT_MEM)))
     ? rs2_data
     : 32'h0;
 
-// XXX store mask
-assign bus_wmask = 4'b1111;
+// Address inside word
+wire [1:0] addr_byte_offset = bus_addr[1:0];
+logic bus_align_error;
+
+// Write mask and write data
+always_comb begin
+    bus_wdata = 32'h0;
+    bus_wmask = 4'h0;
+    bus_align_error = 1'b0;
+
+    if (is_load) begin
+        // We always load a whole word
+        bus_wmask = 4'b1111;
+    end
+    else if (is_store) begin
+        case (instr_func3_mem)
+            FUNCT3_MEM_BYTE: begin
+                // No misalignment possible
+                bus_align_error = 1'b0;
+
+                // Little endian "emulation", because bus is big endian
+                case (addr_byte_offset)
+                    2'b00: begin
+                        bus_wmask = 4'b0001; // Addressing lowest order byte
+                        bus_wdata = { 24'h0, store_data[7:0] };
+                    end
+                    2'b01: begin
+                        bus_wmask = 4'b0010;
+                        bus_wdata = { 16'h0, store_data[7:0], 8'h0 };
+                    end
+                    2'b10: begin
+                        bus_wmask = 4'b0100;
+                        bus_wdata = { 8'h0, store_data[7:0], 16'h0 };
+                    end
+                    2'b11: begin
+                        bus_wmask = 4'b1000; // Addressing highest order byte
+                        bus_wdata = { store_data[7:0], 24'h0 };
+                    end
+                endcase
+            end
+            FUNCT3_MEM_HALF_WORD: begin
+                bus_align_error = (addr_byte_offset == 2'b01 || addr_byte_offset == 2'b11);
+
+                if (addr_byte_offset == 2'b00) begin
+                    // Accessing lower half word
+                    bus_wmask = 4'b0011;
+                    bus_wdata = { 16'h0, store_data[15:0] };
+                end
+                else if (addr_byte_offset == 2'b10) begin
+                    // Accessing upper half word
+                    bus_wmask = 4'b1100;
+                    bus_wdata = { store_data[15:0], 16'h0 };
+                end
+            end
+            /*FUNCT3_MEM_WORD*/
+            default: begin // Word access
+                bus_wmask = 4'b1111;
+                bus_wdata = store_data;
+                bus_align_error = (addr_byte_offset != 2'h0) ? 1'b1 : 1'b0;
+            end
+        endcase
+    end
+end
 
 // Bus command and address handling
 always_comb begin
@@ -387,13 +463,57 @@ always_comb begin
             bus_addr = rs1_data + imm_S;
         end
     end
+    else if (`IN_STATE(CPU_STATE_WAIT_MEM)) begin
+        if (is_load) begin
+            bus_addr = rs1_data + imm_I;
+        end
+        else if (is_store) begin
+            bus_addr = rs1_data + imm_S;
+        end
+    end
 end
 
 // The result of the load operation, after sign extending etc
 logic [31:0] load_result;
 
-// XXX Implement
-assign load_result = bus_rdata_swapped;
+always_comb begin
+    load_result = 32'h0;
+    
+    case (instr_func3_mem)
+        FUNCT3_MEM_BYTE: begin
+            case (addr_byte_offset)
+                2'b00: begin
+                    // Addressing lowest order byte
+                    load_result = { (instr_mem_signed & bus_rdata[7]) ? 24'hFFFFF : 24'h0, bus_rdata[7:0] };
+                end
+                2'b01: begin
+                    load_result = { (instr_mem_signed & bus_rdata[15]) ? 24'hFFFFF : 24'h0, bus_rdata[15:8] };
+                end
+                2'b10: begin
+                    load_result = { (instr_mem_signed & bus_rdata[22]) ? 24'hFFFFF : 24'h0, bus_rdata[23:16] };
+                end
+                2'b11: begin
+                    // Addressing highest order byte
+                    load_result = { (instr_mem_signed & bus_rdata[31]) ? 24'hFFFFF : 24'h0, bus_rdata[31:24] };
+                end
+            endcase
+        end
+        FUNCT3_MEM_HALF_WORD: begin
+            if (addr_byte_offset == 2'b00) begin
+                // Addressing lower half word
+                load_result = { (instr_mem_signed & bus_rdata[15]) ? 16'hFFFF : 16'h0, bus_rdata[15:0] };
+            end
+            else if (addr_byte_offset == 2'b10) begin
+                // Addressing upper half word
+                load_result = { (instr_mem_signed & bus_rdata[31]) ? 16'hFFFF : 16'h0, bus_rdata[31:16] };
+            end
+        end
+        /*FUNCT3_MEM_WORD*/
+        default: begin // Word access
+            load_result = bus_rdata;
+        end
+    endcase
+end
 
 // ==== Next PC logic and branching ====
 logic branch_taken;
@@ -460,9 +580,9 @@ always_ff @(posedge clk_in) begin
                 // We wait for the WB masters busy signal to be deasserted.
                 // If that happens, the instruction has finished loading.
                 if (~bus_busy) begin
-                    instruction <= bus_rdata_swapped;
-                    rs1_data <= registers[bus_rdata_swapped[19:15]];
-                    rs2_data <= registers[bus_rdata_swapped[24:20]];
+                    instruction <= bus_rdata;
+                    rs1_data <= registers[bus_rdata[19:15]];
+                    rs2_data <= registers[bus_rdata[24:20]];
                     cpu_state <= CPU_STATE_EXECUTE;
                 end
             end

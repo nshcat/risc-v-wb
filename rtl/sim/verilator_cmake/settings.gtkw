@@ -1,10 +1,10 @@
 [*]
 [*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
-[*] Thu Dec 30 19:01:35 2021
+[*] Thu Dec 30 20:58:12 2021
 [*]
 [dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\bld\waveforms.fst"
-[dumpfile_mtime] "Thu Dec 30 19:01:26 2021"
-[dumpfile_size] 4663
+[dumpfile_mtime] "Thu Dec 30 20:57:54 2021"
+[dumpfile_size] 5676
 [savefile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\settings.gtkw"
 [timestart] 233
 [size] 2222 886
@@ -13,6 +13,7 @@
 [treeopen] TOP.
 [treeopen] TOP.top_verilator.
 [treeopen] TOP.top_verilator.soc.
+[treeopen] TOP.top_verilator.soc.cpu.
 [sst_width] 357
 [signals_width] 342
 [sst_expanded] 1
@@ -33,6 +34,9 @@ TOP.top_verilator.soc.cpu.cpu_state[3:0]
 TOP.top_verilator.soc.cpu.instruction[31:0]
 @100000028
 TOP.top_verilator.soc.cpu.instr_opcode[6:0]
+TOP.top_verilator.soc.cpu.instr_func3_mem[2:0]
+@100000029
+TOP.top_verilator.soc.cpu.instr_func3_branch[2:0]
 @200
 -
 -Register file

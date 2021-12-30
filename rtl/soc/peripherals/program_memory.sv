@@ -7,6 +7,15 @@ module program_memory #(
     wb_bus.slave bus_slave
 );
 
+function [31:0] endian_swap_word(input [31:0] word);
+    endian_swap_word = {
+        word[ 7: 0],
+        word[15: 8],
+        word[23:16],
+        word[31:24]
+    };
+endfunction
+
 // Error logic. We dont support writes or misaligned reads
 wire err = (bus_slave.we || bus_slave.addr[1:0] != 2'h0);
 
@@ -33,7 +42,7 @@ always_ff @(posedge clk_in) begin
         rdata <= 32'h0;
     end
     else if (bus_slave.stb) begin
-        rdata <= memory[word_addr];
+        rdata <= endian_swap_word(memory[word_addr]);
     end
 end
 
