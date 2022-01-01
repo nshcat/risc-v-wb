@@ -106,6 +106,21 @@ function funct3_mem_t castToFunct3Mem(logic [1:0] value);
     endcase
 endfunction
 
+typedef enum logic [1:0]
+{
+    FUNCT3_CSR_READ_WRITE       = 2'b01,
+    FUNCT3_CSR_READ_SET         = 2'b10,
+    FUNCT3_CSR_READ_CLEAR       = 2'b11
+} funct3_csr_t;
+
+function funct3_csr_t castToFunct3Csr(logic [1:0] value);
+    case(value)
+        2'b01: castToFunct3Csr = FUNCT3_CSR_READ_WRITE;
+        2'b10: castToFunct3Csr = FUNCT3_CSR_READ_SET;
+        default: castToFunct3Csr = FUNCT3_CSR_READ_CLEAR;  
+    endcase
+endfunction
+
 // Funct7 field constants
 typedef enum logic [6:0]
 {
@@ -136,6 +151,9 @@ wire [4:0] instr_rd = instruction[11:7];
 wire [4:0] instr_shamt = instruction[24:20];
 wire [2:0] instr_func3 = instruction[14:12];
 wire instr_mem_signed = ~instr_func3[2];
+wire instr_csr_use_imm = instr_func3[2];
+wire [11:0] instr_csr_addr = instruction[31:20];
+
 
 // For some reason, direct continuous assignment doesnt work with enums and function calls..
 opcode_t instr_opcode;
@@ -153,13 +171,16 @@ assign instr_func3_arith = castToFunct3Arith(instr_func3);
 funct3_mem_t instr_func3_mem;
 assign instr_func3_mem = castToFunct3Mem(instr_func3[1:0]);
 
+funct3_csr_t instr_func3_csr;
+assign instr_func3_csr = castToFunct3Csr(instr_func3[1:0]);
+
 wire is_arith_reg = (instr_opcode == OPCODE_ARITH_R);
 wire is_arith_imm = (instr_opcode == OPCODE_ARITH_I);
 wire is_arith = (is_arith_reg | is_arith_imm);
 wire is_branch = (instr_opcode == OPCODE_BRANCH);
 wire is_jal = (instr_opcode == OPCODE_JAL);
 wire is_jalr = (instr_opcode == OPCODE_JALR);
-wire is_system = (instr_opcode == OPCODE_SYSTEM);
+wire is_csr = (instr_opcode == OPCODE_SYSTEM);
 wire is_lui = (instr_opcode == OPCODE_LUI);
 wire is_auipc = (instr_opcode == OPCODE_AUIPC);
 wire is_load = (instr_opcode == OPCODE_LOAD);
@@ -172,6 +193,7 @@ wire [31:0] imm_S = { (imm_sign ? 21'h1FFFFF : 21'h0), instruction[30:25], instr
 wire [31:0] imm_B = { (imm_sign ? 20'hFFFFF : 20'h0), instruction[7], instruction[30:25], instruction[11:8], 1'b0 };
 wire [31:0] imm_U = { instruction[31:12], 12'h0 };
 wire [31:0] imm_J = { (imm_sign ? 12'hFFF : 12'h0), instruction[19:12], instruction[20], instruction[30:25], instruction[24:21], 1'b0 };
+wire [31:0] imm_CSR = { 27'h0, instruction[19:15] };
 
 // ==== Register file ====
 
@@ -226,6 +248,60 @@ always_comb begin
         if (~is_load & `IN_STATE(CPU_STATE_EXECUTE)) begin
             do_writeback = 1'b1;
         end
+    end
+end
+
+// ==== CSRs ====
+logic [31:0] csrs [0:4095];
+
+initial begin
+    for (int i = 0; i < 4096; i++)
+        csrs[i] = 32'h0;
+end
+
+// Allocated CSR addresses
+localparam CSR_CYCLE = 12'hC00;
+localparam CSR_CYCLEH = 12'hC80;
+
+wire [31:0] csr_wdata = instr_csr_use_imm ? imm_CSR : rs1_data;
+wire do_csr_writeback = is_csr & `IN_STATE(CPU_STATE_EXECUTE)
+    // Dont do CSR write if bit SET/CLEAR operation is used, and the argument is zero
+    & ~((instr_func3_csr == FUNCT3_CSR_READ_CLEAR || instr_func3_csr == FUNCT3_CSR_READ_SET) & ~instr_csr_use_imm & (instr_rs1 == 5'h0))
+    & ~((instr_func3_csr == FUNCT3_CSR_READ_CLEAR || instr_func3_csr == FUNCT3_CSR_READ_SET) & instr_csr_use_imm & (imm_CSR == 32'h0));
+
+// XXX Implement for CSRs that get implemented
+// XXX Raise exception if do_csr_writeback & ~csr_writeable
+wire csr_writeable = 1'h0;
+
+always_ff @(posedge clk_in) begin
+    if (~reset_in) begin
+        csrs[CSR_CYCLE] <= 32'h0;
+        csrs[CSR_CYCLEH] <= 32'h0;
+    end
+    else begin
+        if (`IN_STATE(CPU_STATE_FETCH)) begin
+            // Cycle counter
+            csrs[CSR_CYCLE] <= csrs[CSR_CYCLE] + 32'h1;
+            if (csrs[CSR_CYCLE] == 32'hFFFFFFFF) begin
+                csrs[CSR_CYCLEH] <= csrs[CSR_CYCLEH] + 32'h1;
+            end
+        end
+        else if (`IN_STATE(CPU_STATE_EXECUTE)) begin
+            if (do_csr_writeback & csr_writeable) begin
+                case (instr_func3_csr)
+                    FUNCT3_CSR_READ_WRITE: begin
+                        csrs[instr_csr_addr] <= csr_wdata;
+                    end
+                    FUNCT3_CSR_READ_SET: begin
+                        csrs[instr_csr_addr] <= csrs[instr_csr_addr] | csr_wdata;
+                    end
+                    FUNCT3_CSR_READ_CLEAR: begin
+                        csrs[instr_csr_addr] <= csrs[instr_csr_addr] & ~csr_wdata;
+                    end
+                endcase
+            end
+        end
+        // XXX Modify interrupt-related CSRs in DO_TRAP cpu state to avoid write colisions
     end
 end
 
@@ -336,6 +412,9 @@ always_comb begin
         end
         (is_load): begin
             writeback_value = load_result;
+        end
+        (is_csr): begin
+            writeback_value = csrs[instr_csr_addr];
         end
     endcase
 end

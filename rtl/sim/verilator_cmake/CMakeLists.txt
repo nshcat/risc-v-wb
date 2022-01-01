@@ -7,7 +7,8 @@ add_executable(socsim src/sim_main.cpp)
 verilate(socsim 
 	SOURCES "./../top_verilator.sv"
 	TRACE_FST
-	INCLUDE_DIRS "./../../soc/wishbone;./../../soc;./../../soc/core;./../../soc/peripherals;./..")
+	INCLUDE_DIRS "./../../soc/wishbone;./../../soc;./../../soc/core;./../../soc/peripherals;./.."
+	VERILATOR_ARGS --trace-max-array 8000)
 	
 set_property(TARGET socsim PROPERTY CXX_STANDARD 17)
 set_property(TARGET socsim PROPERTY CXX_STANDARD_REQUIRED ON)
