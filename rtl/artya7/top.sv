@@ -6,7 +6,9 @@ module top(
 
     output logic led0_r_out,
     output logic led0_g_out,
-    output logic led0_b_out
+    output logic led0_b_out,
+
+    output logic [3:0] leds_out
 );
 
 // Clock generation
@@ -44,7 +46,8 @@ logic reset = ~reset_rising & locked;
 // SoC instance
 soc soc(
     .clk_in(slow_clk),
-    .reset_in(reset)
+    .reset_in(reset),
+    .leds_out(leds_out)
 );
 
 // Debug stuff
