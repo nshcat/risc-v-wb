@@ -262,6 +262,8 @@ end
 // Allocated CSR addresses
 localparam CSR_CYCLE = 12'hC00;
 localparam CSR_CYCLEH = 12'hC80;
+localparam CSR_TIME = 12'hC01;
+localparam CSR_TIMEH = 12'hC81;
 
 wire [31:0] csr_wdata = instr_csr_use_imm ? imm_CSR : rs1_data;
 wire do_csr_writeback = is_csr & `IN_STATE(CPU_STATE_EXECUTE)
@@ -273,12 +275,39 @@ wire do_csr_writeback = is_csr & `IN_STATE(CPU_STATE_EXECUTE)
 // XXX Raise exception if do_csr_writeback & ~csr_writeable
 wire csr_writeable = 1'h0;
 
+// Logic for millisecond RDTIME counter
+`ifdef VERILATOR
+localparam  CSR_TIME_THRES = 16'd1;
+`else
+localparam CSR_TIME_THRES = 16'd24999;   // 25 MHz / 25000 = 1 KHz
+`endif
+
+logic [15:0] time_counter;
+initial time_counter = 16'h0;
+
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
+        time_counter <= 16'h0;
         csrs[CSR_CYCLE] <= 32'h0;
         csrs[CSR_CYCLEH] <= 32'h0;
+        csrs[CSR_TIME] <= 32'h0;
+        csrs[CSR_TIMEH] <= 32'h0;
     end
     else begin
+        // Timer CSR handling
+        if (time_counter == CSR_TIME_THRES) begin
+            time_counter <= 16'h0;
+
+            // A millisecond has passed - increment timer CSR
+            csrs[CSR_TIME] <= csrs[CSR_TIME] + 32'h1;
+            if (csrs[CSR_TIME] == 32'hFFFFFFFF) begin
+                csrs[CSR_TIMEH] <= csrs[CSR_TIMEH] + 32'h1;
+            end
+        end
+        else begin
+            time_counter <= time_counter + 16'h1;
+        end
+
         if (`IN_STATE(CPU_STATE_FETCH)) begin
             // Cycle counter
             csrs[CSR_CYCLE] <= csrs[CSR_CYCLE] + 32'h1;
