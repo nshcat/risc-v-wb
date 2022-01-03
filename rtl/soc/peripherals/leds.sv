@@ -10,7 +10,6 @@ module leds #(
 );
 
 logic [3:0] led_state;
-initial led_state = 4'h0;
 
 wire addr_valid = (bus_slave.addr - BaseAddr) == 32'h0;
 

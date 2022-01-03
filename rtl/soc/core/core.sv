@@ -141,10 +141,6 @@ endfunction
 // The currently latched instruction
 logic [31:0] instruction;
 
-initial begin
-    instruction = 32'h0;
-end
-
 wire [4:0] instr_rs1 = instruction[19:15];
 wire [4:0] instr_rs2 = instruction[24:20];
 wire [4:0] instr_rd = instruction[11:7];
@@ -210,9 +206,6 @@ initial begin
     integer i;
     for (i = 0; i < 32; i = i + 1)
         registers[i] = 32'h0;
-
-    rs1_data = 32'h0;
-    rs2_data = 32'h0;
 end
 
 // Register writeback and reset
@@ -278,12 +271,13 @@ wire csr_writeable = 1'h0;
 // Logic for millisecond RDTIME counter
 `ifdef VERILATOR
 localparam  CSR_TIME_THRES = 16'd1;
+`elsif VIVADO_SIM
+localparam  CSR_TIME_THRES = 16'd1;
 `else
 localparam CSR_TIME_THRES = 16'd24999;   // 25 MHz / 25000 = 1 KHz
 `endif
 
 logic [15:0] time_counter;
-initial time_counter = 16'h0;
 
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
@@ -324,7 +318,8 @@ always_ff @(posedge clk_in) begin
                     FUNCT3_CSR_READ_SET: begin
                         csrs[instr_csr_addr] <= csrs[instr_csr_addr] | csr_wdata;
                     end
-                    FUNCT3_CSR_READ_CLEAR: begin
+                    /* FUNCT3_CSR_READ_CLEAR */
+                    default: begin
                         csrs[instr_csr_addr] <= csrs[instr_csr_addr] & ~csr_wdata;
                     end
                 endcase
@@ -407,7 +402,8 @@ always_comb begin
             // For imm arithmetic left shifts, we need to use the shamt field in the instruction
             arith_result = arith_in1 << (is_arith_imm ? { 27'h0, instr_shamt } : arith_in2);
         end
-        FUNCT3_ARITH_SHIFTR: begin
+        /* FUNCT3_ARITH_SHIFTR */
+        default: begin
             // FUNCT7_ALT implies arithmetic right shift
             if (instr_func7 == FUNCT7_ALT) begin
                 // As for left shifts, imm arithmetic right shift uses shamt field of instruction
@@ -444,6 +440,9 @@ always_comb begin
         end
         (is_csr): begin
             writeback_value = csrs[instr_csr_addr];
+        end
+        default: begin
+            writeback_value = 32'h0;
         end
     endcase
 end
@@ -656,6 +655,9 @@ always_comb begin
                 pc_next = pc + imm_B;
             end
         end
+        default: begin
+            pc_next = pc + 32'h4;
+        end
     endcase
 end
 
@@ -671,15 +673,13 @@ typedef enum logic[3:0]
 cpu_state_t cpu_state;
 logic [31:0] pc;
 
-initial begin
-    pc = 32'h0;
-    cpu_state = CPU_STATE_FETCH;
-end
-
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
         pc <= 32'h0;
         cpu_state <= CPU_STATE_FETCH;
+        instruction <= 32'h0;
+        rs1_data <= 32'h0;
+        rs2_data <= 32'h0;
     end
     else begin
         case (cpu_state)        

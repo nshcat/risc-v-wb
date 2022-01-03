@@ -38,19 +38,6 @@ state_t state;
 // Or all WB signals combinationally derived from current state?
 logic we, stb, cyc;
 
-initial begin
-    read_data = 32'h0;
-    busy = 1'b0;
-    error = 1'b0;
-    state = STATE_WAIT_FOR_CMD;
-    address = 32'h0;
-    write_mask = 4'h0;
-    write_data = 32'h0;
-    we = 1'h0;
-    stb = 1'h0;
-    cyc = 1'h0;
-end
-
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
         read_data <= 32'h0;

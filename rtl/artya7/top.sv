@@ -4,10 +4,6 @@ module top(
 
     input logic reset_btn_in,   // Gets asserted when pushed
 
-    output logic led0_r_out,
-    output logic led0_g_out,
-    output logic led0_b_out,
-
     output logic [3:0] leds_out
 );
 
@@ -49,31 +45,5 @@ soc soc(
     .reset_in(reset),
     .leds_out(leds_out)
 );
-
-// Debug stuff
-logic [2:0] led_state;
-initial led_state = 3'h00;
-assign { led0_r_out, led0_g_out, led0_b_out } = led_state;
-
-logic [23:0] counter;
-initial begin
-    counter = 24'h0;
-end
-
-always_ff @(posedge slow_clk) begin
-    if(~reset) begin
-        counter <= 24'h0;
-        led_state <= 3'h0;
-    end
-    else begin
-        if(counter == 24'd10000000) begin
-            counter <= 24'h0;
-            led_state <= led_state + 3'h1;
-        end
-        else begin
-            counter <= counter + 24'h1;
-        end
-    end
-end
 
 endmodule

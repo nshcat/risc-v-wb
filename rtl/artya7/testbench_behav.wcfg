@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="testbench_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="\$unit_wb_bus_sv " />
+            <top_module name="glbl" />
+            <top_module name="testbench" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="912.270 ns"></ZoomStartTime>
+      <ZoomEndTime time="2,038.771 ns"></ZoomEndTime>
+      <Cursor1Time time="1,100.020 ns"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="280"></NameColumnWidth>
+      <ValueColumnWidth column_width="126"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="14" />
+   <wvobject fp_name="/testbench/clk" type="logic">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/reset" type="logic">
+      <obj_property name="ElementShortName">reset</obj_property>
+      <obj_property name="ObjectShortName">reset</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/leds" type="array">
+      <obj_property name="ElementShortName">leds[3:0]</obj_property>
+      <obj_property name="ObjectShortName">leds[3:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/PERIOD" type="array">
+      <obj_property name="ElementShortName">PERIOD[31:0]</obj_property>
+      <obj_property name="ObjectShortName">PERIOD[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/pc" type="array">
+      <obj_property name="ElementShortName">pc[31:0]</obj_property>
+      <obj_property name="ObjectShortName">pc[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/instruction" type="array">
+      <obj_property name="ElementShortName">instruction[31:0]</obj_property>
+      <obj_property name="ObjectShortName">instruction[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/instr_opcode" type="array">
+      <obj_property name="ElementShortName">instr_opcode[6:0]</obj_property>
+      <obj_property name="ObjectShortName">instr_opcode[6:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/cpu_state" type="array">
+      <obj_property name="ElementShortName">cpu_state[3:0]</obj_property>
+      <obj_property name="ObjectShortName">cpu_state[3:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/bus_rdata" type="array">
+      <obj_property name="ElementShortName">bus_rdata[31:0]</obj_property>
+      <obj_property name="ObjectShortName">bus_rdata[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/bus/state" type="array">
+      <obj_property name="ElementShortName">state[1:0]</obj_property>
+      <obj_property name="ObjectShortName">state[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/bus_master/master/err" type="logic">
+      <obj_property name="ElementShortName">err</obj_property>
+      <obj_property name="ObjectShortName">err</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/cpu/bus_master/master/addr" type="array">
+      <obj_property name="ElementShortName">addr[31:0]</obj_property>
+      <obj_property name="ObjectShortName">addr[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/led/led_state" type="array">
+      <obj_property name="ElementShortName">led_state[3:0]</obj_property>
+      <obj_property name="ObjectShortName">led_state[3:0]</obj_property>
+      <obj_property name="Radix">BINARYRADIX</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench/dut/led/bus_slave/slave/wdata" type="array">
+      <obj_property name="ElementShortName">wdata[31:0]</obj_property>
+      <obj_property name="ObjectShortName">wdata[31:0]</obj_property>
+      <obj_property name="Radix">BINARYRADIX</obj_property>
+   </wvobject>
+</wave_config>

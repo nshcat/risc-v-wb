@@ -34,16 +34,8 @@ wire [31:0] word_wmask = {
 };
 
 logic [31:0] rdata;
-initial begin
-    rdata = 32'h0;
-end
-
 logic ack;
 state_t state;
-initial begin
-    ack = 1'b0;
-    state = STATE_WAIT;
-end
 
 always_ff @(posedge clk_in) begin
     if (~reset_in) begin
