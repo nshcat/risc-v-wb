@@ -1,23 +1,20 @@
-				lui t0, %hi(0x4000)
-				addi t0, t0, %lo(0x4000)
-				lui t1, %hi(0b1010)
-				addi t1, t0, %lo(0b1010)
+				li t0, 0x4000
+				li t1, 0b0101
 				sw t1, 0(t0)
-
-
-.toggle_leds:	lui t0, %hi(0x4000)
-				addi t0, t0, %lo(0x4000)
-	
+				
+.loop:			li a0, 1000
+				jal .delay
+				
+				li t0, 0x4000
 				lw t1, 0(t0)
 				not t1, t1
 				sw t1, 0(t0)
-				j .delay
-    
+				j .loop
+				
 
+# Delays execution by the numnber of milliseconds passed in a0
 .delay:			rdtime t0
 .delay_loop: 	rdtime t1
-				sub t0, t1, t0
-				lui t1, %hi(10)
-				addi t1, t1, %lo(10)
-				bltu t0, t1, .delay_loop
-				j .toggle_leds
+				sub t2, t1, t0
+				bltu t2, a0, .delay_loop
+				ret
