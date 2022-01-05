@@ -21,9 +21,9 @@ core cpu(
 wb_interconnect #(
     .N(3),
     .AddrRanges({
-        32'h0, 32'h2FFC,        // Program memory
-        32'h3000, 32'h3FFC,      // Data memory
-        32'h4000, 32'h4000
+        32'h0,      32'h2FFC,           // Program memory
+        32'h3000,   32'h3FFC,           // Data memory
+        32'h4000,   32'h4000            // LED controller
     })
 ) inter(
     .bus_in(core_bus),

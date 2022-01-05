@@ -11,5 +11,4 @@ soc soc(
     .leds_out(leds)
 );
 
-
 endmodule
