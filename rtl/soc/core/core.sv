@@ -4,6 +4,9 @@ module core(
     input logic clk_in,
     input logic reset_in,
 
+    input logic ext_irq_in,
+    input logic ext_irq_clr_in,
+
     wb_bus.master bus_master
 );
 
@@ -22,7 +25,9 @@ typedef enum logic[6:0]
     OPCODE_STORE        = 7'b0100011,   // mem[rs1+Simm] <- rs2
     OPCODE_LUI          = 7'b0110111,   // rd <- Uimm
     OPCODE_AUIPC        = 7'b0010111,   // rd <- PC + Uimm
-    OPCODE_SYSTEM       = 7'b1110011    // rd <- CSR <- rs1/uimm5
+    OPCODE_SYSTEM       = 7'b1110011,   // rd <- CSR <- rs1/uimm5
+
+    OPCODE_INVALID      = 7'b1111111    // Invalid opcode   
 
     // XXX OPCODE_INVALID
 } opcode_t;
@@ -40,7 +45,8 @@ function opcode_t castToOpcode(logic [6:0] value);
         7'b0100011: castToOpcode = OPCODE_STORE;
         7'b0110111: castToOpcode = OPCODE_LUI;
         7'b0010111: castToOpcode = OPCODE_AUIPC;  
-        default: castToOpcode = OPCODE_SYSTEM;  
+        7'b1110011: castToOpcode = OPCODE_SYSTEM;
+        default: castToOpcode = OPCODE_INVALID;  
     endcase
 endfunction
 
@@ -135,7 +141,6 @@ function funct7_t castToFunct7(logic [6:0] value);
     endcase
 endfunction
 
-
 // ==== Instruction decoding ====
 
 // The currently latched instruction
@@ -149,7 +154,6 @@ wire [2:0] instr_func3 = instruction[14:12];
 wire instr_mem_signed = ~instr_func3[2];
 wire instr_csr_use_imm = instr_func3[2];
 wire [11:0] instr_csr_addr = instruction[31:20];
-
 
 // For some reason, direct continuous assignment doesnt work with enums and function calls..
 opcode_t instr_opcode;
@@ -176,7 +180,9 @@ wire is_arith = (is_arith_reg | is_arith_imm);
 wire is_branch = (instr_opcode == OPCODE_BRANCH);
 wire is_jal = (instr_opcode == OPCODE_JAL);
 wire is_jalr = (instr_opcode == OPCODE_JALR);
-wire is_csr = (instr_opcode == OPCODE_SYSTEM);
+wire is_csr = (instr_opcode == OPCODE_SYSTEM) && (instr_func3 != 3'b000);
+wire is_iret = (instr_opcode == OPCODE_SYSTEM) && (instr_func3 == 3'b000);
+wire is_mret = (is_iret) && (instr_func7 == 7'b0011000);
 wire is_lui = (instr_opcode == OPCODE_LUI);
 wire is_auipc = (instr_opcode == OPCODE_AUIPC);
 wire is_load = (instr_opcode == OPCODE_LOAD);
@@ -231,8 +237,8 @@ logic do_writeback;
 always_comb begin
     do_writeback = 1'b0;
 
-    // Stores and branches dont do writeback
-    if (~(is_branch | is_store)) begin
+    // Stores, branches, and iret dont do writeback
+    if (~(is_branch | is_store | is_iret)) begin
         // Only do write back when reading is finished
         if (is_load & `IN_STATE(CPU_STATE_WAIT_MEM) & ~bus_busy) begin
             do_writeback = 1'b1;
@@ -257,7 +263,28 @@ localparam CSR_CYCLE = 12'hC00;
 localparam CSR_CYCLEH = 12'hC80;
 localparam CSR_TIME = 12'hC01;
 localparam CSR_TIMEH = 12'hC81;
+localparam CSR_MSTATUS = 12'h300;
+localparam CSR_MIE = 12'h304;
+localparam CSR_MTVEC = 12'h305;
+localparam CSR_MSCRATCH = 12'h340;
+localparam CSR_MEPC = 12'h341;
+localparam CSR_MCAUSE = 12'h342;
+localparam CSR_MTVAL = 12'h343;
+localparam CSR_MIP = 12'h344;
 
+localparam CSR_MSTATUS_MIE_BIT = 3;
+localparam CSR_MSTATUS_MPIE_BIT = 7;
+localparam CSR_MIP_MEIP_BIT = 11;
+localparam CSR_MIE_MEIE_BIT = 11;
+
+// Commonly used CSR values
+// The MTVEC csr holds the upper 30 bits of the trap base address. Since
+// it has to be aligned to a 4 byte boundary, those bits would be zero anyways.
+wire [31:0] trap_base_addr = { csrs[CSR_MTVEC][31:2], 2'h0 };
+wire external_irq_pending = csrs[CSR_MIP][CSR_MIP_MEIP_BIT];
+wire external_irq_enabled = csrs[CSR_MIE][CSR_MIE_MEIE_BIT];
+
+// CSR writeback logic
 wire [31:0] csr_wdata = instr_csr_use_imm ? imm_CSR : rs1_data;
 wire do_csr_writeback = is_csr & `IN_STATE(CPU_STATE_EXECUTE)
     // Dont do CSR write if bit SET/CLEAR operation is used, and the argument is zero
@@ -266,7 +293,7 @@ wire do_csr_writeback = is_csr & `IN_STATE(CPU_STATE_EXECUTE)
 
 // XXX Implement for CSRs that get implemented
 // XXX Raise exception if do_csr_writeback & ~csr_writeable
-wire csr_writeable = 1'h0;
+wire csr_writeable = (instr_csr_addr[11:10] != 2'b11) && (instr_csr_addr != CSR_MIP);
 
 // Logic for millisecond RDTIME counter
 `ifdef VERILATOR
@@ -286,6 +313,10 @@ always_ff @(posedge clk_in) begin
         csrs[CSR_CYCLEH] <= 32'h0;
         csrs[CSR_TIME] <= 32'h0;
         csrs[CSR_TIMEH] <= 32'h0;
+        csrs[CSR_MSTATUS] <= 32'h0;
+        csrs[CSR_MTVEC] <= 32'h0;
+        csrs[CSR_MIE] <= 32'h0;
+        csrs[CSR_MIP] <= 32'h0;
     end
     else begin
         // Timer CSR handling
@@ -300,6 +331,15 @@ always_ff @(posedge clk_in) begin
         end
         else begin
             time_counter <= time_counter + 16'h1;
+        end
+
+        // MIP external irq bit handling
+        // Clear has priority, and we are sampling both each on every clock edge
+        if (ext_irq_clr_in) begin
+            csrs[CSR_MIP][CSR_MIP_MEIP] <= 1'b0;
+        end
+        else if (ext_irq_in) begin
+            csrs[CSR_MIP][CSR_MIP_MEIP] <= 1'b1;
         end
 
         if (`IN_STATE(CPU_STATE_FETCH)) begin
@@ -324,8 +364,27 @@ always_ff @(posedge clk_in) begin
                     end
                 endcase
             end
+            else if (is_mret) begin
+                // Restore interrupt enable bit to state before trap
+                csrs[CSR_MSTATUS][CSR_MSTATUS_MIE_BIT] <= csrs[CSR_MSTATUS][CSR_MSTATUS_MPIE_BIT];
+            end
         end
-        // XXX Modify interrupt-related CSRs in DO_TRAP cpu state to avoid write colisions
+        else if (`IN_STATE(CPU_STATE_DO_TRAP)) begin
+            // Being in the DO_TRAP state means we created an exception
+
+            // Store cause. For normal interrupts, we only have external irq.
+            csrs[CSR_MCAUSE] <= { is_interrupt, (is_interrupt ? 31'h11 : 31'(exc_cause)) };
+
+            // PC of offending instruction (or of instruction that was just finished for interrupts)
+            csrs[CSR_MEPC] <= pc;
+
+            // Further exception details, such as offending instruction etc
+            csrs[CSR_MTVAL] <= exc_details;
+
+            // Disable further interrupts
+            csrs[CSR_MSTATUS][CSR_MSTATUS_MPIE_BIT] <= 1'b1;
+            csrs[CSR_MSTATUS][CSR_MSTATUS_MIE_BIT] <= 1'b0;
+        end
     end
 end
 
@@ -459,7 +518,6 @@ logic bus_busy;
 // The bus only accepts word addressing
 assign bus_word_addr = { bus_addr[31:2], 2'h0 };
 
-// XXX Error management
 logic bus_error;
 
 wb_master bus(
@@ -493,59 +551,55 @@ always_comb begin
     bus_wmask = 4'h0;
     bus_align_error = 1'b0;
 
-    if (is_load) begin
-        // We always load a whole word
-        bus_wmask = 4'b1111;
-    end
-    else if (is_store) begin
-        case (instr_func3_mem)
-            FUNCT3_MEM_BYTE: begin
-                // No misalignment possible
-                bus_align_error = 1'b0;
+    case (instr_func3_mem)
+        FUNCT3_MEM_BYTE: begin
+            // No misalignment possible
+            bus_align_error = 1'b0;
 
-                // Little endian "emulation", because bus is big endian
-                case (addr_byte_offset)
-                    2'b00: begin
-                        bus_wmask = 4'b0001; // Addressing lowest order byte
-                        bus_wdata = { 24'h0, store_data[7:0] };
-                    end
-                    2'b01: begin
-                        bus_wmask = 4'b0010;
-                        bus_wdata = { 16'h0, store_data[7:0], 8'h0 };
-                    end
-                    2'b10: begin
-                        bus_wmask = 4'b0100;
-                        bus_wdata = { 8'h0, store_data[7:0], 16'h0 };
-                    end
-                    2'b11: begin
-                        bus_wmask = 4'b1000; // Addressing highest order byte
-                        bus_wdata = { store_data[7:0], 24'h0 };
-                    end
-                endcase
-            end
-            FUNCT3_MEM_HALF_WORD: begin
-                bus_align_error = (addr_byte_offset == 2'b01 || addr_byte_offset == 2'b11);
+            // Little endian "emulation", because bus is big endian
+            case (addr_byte_offset)
+                2'b00: begin
+                    bus_wmask = 4'b0001; // Addressing lowest order byte
+                    bus_wdata = { 24'h0, store_data[7:0] };
+                end
+                2'b01: begin
+                    bus_wmask = 4'b0010;
+                    bus_wdata = { 16'h0, store_data[7:0], 8'h0 };
+                end
+                2'b10: begin
+                    bus_wmask = 4'b0100;
+                    bus_wdata = { 8'h0, store_data[7:0], 16'h0 };
+                end
+                2'b11: begin
+                    bus_wmask = 4'b1000; // Addressing highest order byte
+                    bus_wdata = { store_data[7:0], 24'h0 };
+                end
+            endcase
+        end
+        FUNCT3_MEM_HALF_WORD: begin
+            bus_align_error = (addr_byte_offset == 2'b01 || addr_byte_offset == 2'b11);
 
-                if (addr_byte_offset == 2'b00) begin
-                    // Accessing lower half word
-                    bus_wmask = 4'b0011;
-                    bus_wdata = { 16'h0, store_data[15:0] };
-                end
-                else if (addr_byte_offset == 2'b10) begin
-                    // Accessing upper half word
-                    bus_wmask = 4'b1100;
-                    bus_wdata = { store_data[15:0], 16'h0 };
-                end
+            if (addr_byte_offset == 2'b00) begin
+                // Accessing lower half word
+                bus_wmask = 4'b0011;
+                bus_wdata = { 16'h0, store_data[15:0] };
             end
-            /*FUNCT3_MEM_WORD*/
-            default: begin // Word access
-                bus_wmask = 4'b1111;
-                bus_wdata = store_data;
-                bus_align_error = (addr_byte_offset != 2'h0) ? 1'b1 : 1'b0;
+            else if (addr_byte_offset == 2'b10) begin
+                // Accessing upper half word
+                bus_wmask = 4'b1100;
+                bus_wdata = { store_data[15:0], 16'h0 };
             end
-        endcase
-    end
+        end
+        /*FUNCT3_MEM_WORD*/
+        default: begin // Word access
+            bus_wmask = 4'b1111;
+            bus_wdata = store_data;
+            bus_align_error = (addr_byte_offset != 2'h0) ? 1'b1 : 1'b0;
+        end
+    endcase
 end
+
+wire pc_align_error = (pc[1:0] != 2'b00);
 
 // Bus command and address handling
 always_comb begin
@@ -555,8 +609,12 @@ always_comb begin
     if (`IN_STATE(CPU_STATE_FETCH)) begin
         // When transitioning from FETCH -> WAITFETCH, we want to signal the WB master to start
         // a load
-        bus_command = WISHBONE_CMD_LOAD;
         bus_addr = pc;
+
+        // Dont try to load if PC is misaligned
+        if (~pc_align_error) begin
+            bus_command = WISHBONE_CMD_LOAD;
+        end
     end
     else if (`IN_STATE(CPU_STATE_EXECUTE) || `IN_STATE(CPU_STATE_WAIT_MEM)) begin      
         if (is_load) begin
@@ -569,11 +627,15 @@ always_comb begin
         // When transitioning from EXECUTE -> WAITMEM, we want to either do a load or a store depending on the 
         // instruction
         if (`IN_STATE(CPU_STATE_EXECUTE)) begin
-            if (is_load) begin
-                bus_command = WISHBONE_CMD_LOAD;
-            end
-            else if (is_store) begin
-                bus_command = WISHBONE_CMD_STORE;
+            // Only perform memory access if address is aligned correctly
+
+            if (~bus_align_error) begin
+                if (is_load) begin
+                    bus_command = WISHBONE_CMD_LOAD;
+                end
+                else if (is_store) begin
+                    bus_command = WISHBONE_CMD_STORE;
+                end
             end
         end
     end
@@ -655,19 +717,52 @@ always_comb begin
                 pc_next = pc + imm_B;
             end
         end
+        (is_mret): begin
+            pc_next = csrs[CSR_MEPC];
+        end
         default: begin
             pc_next = pc + 32'h4;
         end
     endcase
 end
 
+
+// ==== IRQ generation logic ====
+// Register values here are set before going into DO_TRAP state.
+// This either happens at the end of an instruction (external interrupt)
+// or after any state (exception)
+
+// Types of exceptions that can be generated
+typedef enum logic[2:0]
+{ 
+    EXC_INSTR_ADDR_MISALIGN     = 3'h0,
+    EXC_INSTR_LOAD_FAULT        = 3'h1,
+    EXC_ILLEGAL_INSTR           = 3'h2,
+    EXC_BREAKPOINT              = 3'h3,
+    EXC_LOAD_ADDR_MISALIGN      = 3'h4,
+    EXC_LOAD_FAULT              = 3'h5,
+    EXC_STORE_ADDR_MISALIGN     = 3'h6,
+    EXC_STORE_FAULT             = 3'h7
+} exception_cause_t;
+
+// Whether the trap to perform is an external interrupt, or an exception
+logic is_interrupt;
+
+// Cause of exception
+exception_cause_t exc_cause;
+
+// Detailed exception information, such as illegal instruction, or misaligned address etc
+logic [31:0] exc_details;
+
+
 // ==== State machine and program counter ====
-typedef enum logic[3:0]
+typedef enum logic[4:0]
 {
-    CPU_STATE_FETCH         = 4'b0001,
-    CPU_STATE_WAIT_FETCH    = 4'b0010,
-    CPU_STATE_EXECUTE       = 4'b0100,
-    CPU_STATE_WAIT_MEM      = 4'b1000
+    CPU_STATE_FETCH         = 5'b00001,
+    CPU_STATE_WAIT_FETCH    = 5'b00010,
+    CPU_STATE_EXECUTE       = 5'b00100,
+    CPU_STATE_WAIT_MEM      = 5'b01000,
+    CPU_STATE_DO_TRAP       = 5'b10000
 } cpu_state_t;
 
 cpu_state_t cpu_state;
@@ -680,38 +775,110 @@ always_ff @(posedge clk_in) begin
         instruction <= 32'h0;
         rs1_data <= 32'h0;
         rs2_data <= 32'h0;
+        is_exception <= 1'b0;
+        exc_cause <= EXC_INSTR_ADDR_MISALIGN;
+        exc_details <= 32'h0;
     end
     else begin
         case (cpu_state)        
             CPU_STATE_WAIT_FETCH: begin
+                // Check for bus errors while fetching
+                if (bus_error) begin
+                    is_exception <= 1'b1;
+                    exc_cause <= EXC_INSTR_LOAD_FAULT;
+                    exc_details <= pc;
+                    cpu_state <= CPU_STATE_DO_TRAP;
+                end
                 // We wait for the WB masters busy signal to be deasserted.
                 // If that happens, the instruction has finished loading.
-                if (~bus_busy) begin
-                    instruction <= bus_rdata;
-                    rs1_data <= registers[bus_rdata[19:15]];
-                    rs2_data <= registers[bus_rdata[24:20]];
-                    cpu_state <= CPU_STATE_EXECUTE;
+                else if (~bus_busy) begin
+                    // Check if the instruction is valid. If not, generate an invalid instruction exception.
+                    if (castToOpcode(bus_rdata[6:0]) == OPCODE_INVALID) begin
+                        is_exception <= 1'b1;
+                        exc_cause <= EXC_ILLEGAL_INSTR;
+                        exc_details <= bus_rdata;
+                        cpu_state <= CPU_STATE_DO_TRAP;
+                    end
+                    else begin
+                        instruction <= bus_rdata;
+                        rs1_data <= registers[bus_rdata[19:15]];
+                        rs2_data <= registers[bus_rdata[24:20]];
+                        cpu_state <= CPU_STATE_EXECUTE;
+                    end
                 end
             end
             CPU_STATE_EXECUTE: begin
-                // For most instructions, the writeback result has been determined combinational logic.
-                // We just have to wait for memory loads and stores here. But we already assign the new pc.
-                pc <= pc_next;
-
+                // Handling of load and stores
                 // For load/stores, transition from EXECUTE -> WAIT_MEM will initiate a WB bus transaction
-                cpu_state <= (is_load | is_store) ? CPU_STATE_WAIT_MEM : CPU_STATE_FETCH;
+                if (is_load | is_store) begin
+                    // If the requested address failed alignment check, generate exception
+                    if (bus_align_error) begin
+                        is_exception <= 1'b1;
+                        exc_cause <= is_load ? EXC_LOAD_ADDR_MISALIGN : EXC_STORE_ADDR_MISALIGN;
+                        exc_details <= bus_addr;
+                        cpu_state <= CPU_STATE_DO_TRAP;
+                    end
+                    else begin
+                        cpu_state <= CPU_STATE_WAIT_MEM;
+                    end
+                end
+                else begin
+                    // Check if an external interrupt is pending (and interrupts are enabled)
+                    if (external_irq_pending && external_irq_enabled) begin
+                        is_exception <= 1'b0;
+                        exc_details <= 32'h0;
+                        cpu_state <= CPU_STATE_DO_TRAP;
+                    end
+                    else begin
+                        cpu_state <= CPU_STATE_FETCH;
+                        pc <= pc_next;
+                    end
+                end
             end
             CPU_STATE_WAIT_MEM: begin
-                // Wait for memory operation completion
-                if (~bus_busy) begin
-                    cpu_state <= CPU_STATE_FETCH;
+                // Wait for memory operation completion, watching out for any errors
+                if (bus_error) begin
+                    // Bus signaled error during load/store operation. Generate exception.
+                    is_exception <= 1'b1;
+                    exc_cause <= is_load ? EXC_LOAD_FAULT : EXC_STORE_FAULT;
+                    exc_details <= bus_addr;
+                    cpu_state <= CPU_STATE_DO_TRAP;
                 end
+                else if (~bus_busy) begin
+                    // Check if an external interrupt is pending (and interrupts are enabled)
+                    if (external_irq_pending && external_irq_enabled) begin
+                        is_exception <= 1'b0;
+                        exc_details <= 32'h0;
+                        cpu_state <= CPU_STATE_DO_TRAP;
+                    end
+                    else begin
+                        cpu_state <= CPU_STATE_FETCH;
+                        pc <= pc_next;
+                    end
+                end
+            end
+            CPU_STATE_DO_TRAP: begin
+                // CSR writes are done by the CSR process
+
+                // Jump to trap base addr retrieved from MTVEC. We only support direct mode.
+                pc <= trap_base_addr;
+
+                state <= CPU_STATE_FETCH;
             end
             // FETCH
             default: begin
-                // The next transition will initiate a read from mem[pc].
-                // We have to wait for it to finish in the next state.
-                cpu_state <= CPU_STATE_WAIT_FETCH;
+                // Check if the current PC is misaligned. If so, we generate an exception.
+                if (pc_align_error) begin
+                    is_exception <= 1'b1;
+                    exc_cause <= EXC_INSTR_ADDR_MISALIGN;
+                    exc_details <= pc;
+                    cpu_state <= CPU_STATE_DO_TRAP;
+                end
+                else begin
+                    // The next transition will initiate a read from mem[pc].
+                    // We have to wait for it to finish in the next state.
+                    cpu_state <= CPU_STATE_WAIT_FETCH;
+                end
             end
         endcase
     end
