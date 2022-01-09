@@ -282,7 +282,7 @@ localparam CSR_MIE_MEIE_BIT = 11;
 // it has to be aligned to a 4 byte boundary, those bits would be zero anyways.
 wire [31:0] trap_base_addr = { csrs[CSR_MTVEC][31:2], 2'h0 };
 wire external_irq_pending = csrs[CSR_MIP][CSR_MIP_MEIP_BIT];
-wire external_irq_enabled = csrs[CSR_MIE][CSR_MIE_MEIE_BIT];
+wire external_irq_enabled = csrs[CSR_MIE][CSR_MIE_MEIE_BIT] & csrs[CSR_MSTATUS][CSR_MSTATUS_MIE_BIT];
 
 // CSR writeback logic
 wire [31:0] csr_wdata = instr_csr_use_imm ? imm_CSR : rs1_data;
@@ -336,10 +336,10 @@ always_ff @(posedge clk_in) begin
         // MIP external irq bit handling
         // Clear has priority, and we are sampling both each on every clock edge
         if (ext_irq_clr_in) begin
-            csrs[CSR_MIP][CSR_MIP_MEIP] <= 1'b0;
+            csrs[CSR_MIP][CSR_MIP_MEIP_BIT] <= 1'b0;
         end
         else if (ext_irq_in) begin
-            csrs[CSR_MIP][CSR_MIP_MEIP] <= 1'b1;
+            csrs[CSR_MIP][CSR_MIP_MEIP_BIT] <= 1'b1;
         end
 
         if (`IN_STATE(CPU_STATE_FETCH)) begin
@@ -364,7 +364,7 @@ always_ff @(posedge clk_in) begin
                     end
                 endcase
             end
-            else if (is_mret) begin
+            else if (is_iret) begin
                 // Restore interrupt enable bit to state before trap
                 csrs[CSR_MSTATUS][CSR_MSTATUS_MIE_BIT] <= csrs[CSR_MSTATUS][CSR_MSTATUS_MPIE_BIT];
             end
@@ -375,8 +375,8 @@ always_ff @(posedge clk_in) begin
             // Store cause. For normal interrupts, we only have external irq.
             csrs[CSR_MCAUSE] <= { is_interrupt, (is_interrupt ? 31'h11 : 31'(exc_cause)) };
 
-            // PC of offending instruction (or of instruction that was just finished for interrupts)
-            csrs[CSR_MEPC] <= pc;
+            // PC of offending instruction (or of next instruction for interrupts)
+            csrs[CSR_MEPC] <= is_interrupt ? pc_next : pc;
 
             // Further exception details, such as offending instruction etc
             csrs[CSR_MTVAL] <= exc_details;
@@ -717,7 +717,7 @@ always_comb begin
                 pc_next = pc + imm_B;
             end
         end
-        (is_mret): begin
+        (is_iret): begin
             pc_next = csrs[CSR_MEPC];
         end
         default: begin
@@ -775,7 +775,7 @@ always_ff @(posedge clk_in) begin
         instruction <= 32'h0;
         rs1_data <= 32'h0;
         rs2_data <= 32'h0;
-        is_exception <= 1'b0;
+        is_interrupt <= 1'b0;
         exc_cause <= EXC_INSTR_ADDR_MISALIGN;
         exc_details <= 32'h0;
     end
@@ -784,7 +784,7 @@ always_ff @(posedge clk_in) begin
             CPU_STATE_WAIT_FETCH: begin
                 // Check for bus errors while fetching
                 if (bus_error) begin
-                    is_exception <= 1'b1;
+                    is_interrupt <= 1'b0;
                     exc_cause <= EXC_INSTR_LOAD_FAULT;
                     exc_details <= pc;
                     cpu_state <= CPU_STATE_DO_TRAP;
@@ -794,7 +794,7 @@ always_ff @(posedge clk_in) begin
                 else if (~bus_busy) begin
                     // Check if the instruction is valid. If not, generate an invalid instruction exception.
                     if (castToOpcode(bus_rdata[6:0]) == OPCODE_INVALID) begin
-                        is_exception <= 1'b1;
+                        is_interrupt <= 1'b0;
                         exc_cause <= EXC_ILLEGAL_INSTR;
                         exc_details <= bus_rdata;
                         cpu_state <= CPU_STATE_DO_TRAP;
@@ -813,7 +813,7 @@ always_ff @(posedge clk_in) begin
                 if (is_load | is_store) begin
                     // If the requested address failed alignment check, generate exception
                     if (bus_align_error) begin
-                        is_exception <= 1'b1;
+                        is_interrupt <= 1'b0;
                         exc_cause <= is_load ? EXC_LOAD_ADDR_MISALIGN : EXC_STORE_ADDR_MISALIGN;
                         exc_details <= bus_addr;
                         cpu_state <= CPU_STATE_DO_TRAP;
@@ -825,7 +825,7 @@ always_ff @(posedge clk_in) begin
                 else begin
                     // Check if an external interrupt is pending (and interrupts are enabled)
                     if (external_irq_pending && external_irq_enabled) begin
-                        is_exception <= 1'b0;
+                        is_interrupt <= 1'b1;
                         exc_details <= 32'h0;
                         cpu_state <= CPU_STATE_DO_TRAP;
                     end
@@ -839,7 +839,7 @@ always_ff @(posedge clk_in) begin
                 // Wait for memory operation completion, watching out for any errors
                 if (bus_error) begin
                     // Bus signaled error during load/store operation. Generate exception.
-                    is_exception <= 1'b1;
+                    is_interrupt <= 1'b0;
                     exc_cause <= is_load ? EXC_LOAD_FAULT : EXC_STORE_FAULT;
                     exc_details <= bus_addr;
                     cpu_state <= CPU_STATE_DO_TRAP;
@@ -847,7 +847,7 @@ always_ff @(posedge clk_in) begin
                 else if (~bus_busy) begin
                     // Check if an external interrupt is pending (and interrupts are enabled)
                     if (external_irq_pending && external_irq_enabled) begin
-                        is_exception <= 1'b0;
+                        is_interrupt <= 1'b1;
                         exc_details <= 32'h0;
                         cpu_state <= CPU_STATE_DO_TRAP;
                     end
@@ -862,14 +862,13 @@ always_ff @(posedge clk_in) begin
 
                 // Jump to trap base addr retrieved from MTVEC. We only support direct mode.
                 pc <= trap_base_addr;
-
-                state <= CPU_STATE_FETCH;
+                cpu_state <= CPU_STATE_FETCH;
             end
             // FETCH
             default: begin
                 // Check if the current PC is misaligned. If so, we generate an exception.
                 if (pc_align_error) begin
-                    is_exception <= 1'b1;
+                    is_interrupt <= 1'b0;
                     exc_cause <= EXC_INSTR_ADDR_MISALIGN;
                     exc_details <= pc;
                     cpu_state <= CPU_STATE_DO_TRAP;

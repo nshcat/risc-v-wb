@@ -1,7 +1,7 @@
+// SoC specific definitions
 #pragma once
 
-typedef unsigned uint32_t;
-typedef int int32_t;
+#include "rv32.h"
 
 // ===== I/O Register Definitions =====
 #define IO_REG(_addr) *((volatile uint32_t*)(_addr))

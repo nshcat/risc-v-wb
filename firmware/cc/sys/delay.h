@@ -1,6 +1,6 @@
 #pragma once
 
-#include "defines.h"
+#include "device.h"
 
 // Delay by the given number of milliseconds. This is quite precise since
 // it uses the SysTick timer.

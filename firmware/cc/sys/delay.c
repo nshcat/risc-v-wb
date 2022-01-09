@@ -1,8 +1,9 @@
 #include "delay.h"
+#include "intrin.h"
 
 void delay_ms(uint32_t dur)
 {
-    uint32_t start = SYSTICK;
+    uint32_t start = __rdtime();
     
     while(SYSTICK - start < dur)
         ;

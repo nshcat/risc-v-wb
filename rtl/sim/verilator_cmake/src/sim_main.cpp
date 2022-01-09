@@ -44,11 +44,28 @@ void simulate(const std::unique_ptr<top_module_t>& top)
 	tfp->dump(main_time);
 	
 	main_time++;
+
+	top->clk_i = 1;
+
+	top->eval();
+
+	tfp->dump(main_time);
+	
+	main_time++;
+
 	top->reset_i = 1;
 
 	top->eval();
 
     // Dump trace data for this cycle
+	tfp->dump(main_time);
+
+	main_time++;
+
+	top->clk_i = 0;
+
+	top->eval();
+
 	tfp->dump(main_time);
 
 	const auto maxCycles = 500;
