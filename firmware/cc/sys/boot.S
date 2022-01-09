@@ -26,7 +26,10 @@
 .set CSR_MTVAL, 0x343
 
 # Peripheral memory-mapped registers
-
+.set EIC_MASK, 0x4010
+.set EIC_CIP, 0x4014
+.set EIC_IRQNUM, 0x4018
+.set EIC_IRQBIT, 0x401C
 
 # Reset vector. Must be placed at address 0x0.
 .align 4
@@ -88,7 +91,35 @@ _isr_common:
     j .restore
 
 .was_interrupt:
+    # Clear MSB to obtain EIC interrupt number from MCAUSE
+    li t0, 0x7FFFFFFF
+    and t0, a0, t0
+
+    # Call entry in ISR vector, if its not nullptr
+    # Calculate offset, 4*IRQNUM
+    slli t0, t0, 2
+
+    # Get base address
+    lui t1, %hi(isr_vector)
+    addi t1, t1, %lo(isr_vector)
+
+    # Get entry address
+    add t0, t0, t1
+
+    # Retrieve ISR vector entry
+    lw t0, 0(t0)
+
+    # Only call if not nullptr
+    beqz t0, .clear_irqpending
+    jalr t0
+
+.clear_irqpending:
+    # Clear the interrupt pending flag in the corresponding EIC register
+    li t0, EIC_IRQBIT
+    lw t1, 0(t0)
     
+    li t0, EIC_CIP
+    sw t1, 0(t0)
     
 .restore:
     # Restore all registers
