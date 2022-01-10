@@ -1,19 +1,21 @@
 [*]
 [*] GTKWave Analyzer v3.3.100 (w)1999-2019 BSI
-[*] Sun Jan 09 00:02:18 2022
+[*] Mon Jan 10 20:57:44 2022
 [*]
 [dumpfile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\bld\waveforms.fst"
-[dumpfile_mtime] "Sat Jan 08 23:59:56 2022"
-[dumpfile_size] 49576
+[dumpfile_mtime] "Mon Jan 10 20:54:40 2022"
+[dumpfile_size] 51062
 [savefile] "Y:\projects\risc-v-wb\rtl\sim\verilator_cmake\settings.gtkw"
-[timestart] 541
+[timestart] 1796
 [size] 2562 939
 [pos] -1 -1
-*-4.000000 629 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-4.000000 1743 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] TOP.
 [treeopen] TOP.top_verilator.
 [treeopen] TOP.top_verilator.soc.
+[treeopen] TOP.top_verilator.soc.eic.
 [treeopen] TOP.top_verilator.soc.led.
+[treeopen] TOP.top_verilator.soc.timer1.
 [sst_width] 357
 [signals_width] 342
 [sst_expanded] 1
@@ -23,7 +25,6 @@
 @28
 TOP.reset_i
 TOP.clk_i
-@29
 TOP.top_verilator.test_irq
 @200
 -
@@ -132,6 +133,17 @@ TOP.top_verilator.soc.eic.mask[15:0]
 TOP.top_verilator.soc.eic.pending_requests[15:0]
 TOP.top_verilator.soc.eic.active_interrupt[3:0]
 TOP.top_verilator.soc.eic.active_interrupt_bit[15:0]
+@29
+TOP.top_verilator.soc.eic.interrupt_active
+@200
+-
+-Peripheral - Timer 1
+@22
+TOP.top_verilator.soc.timer1.control[4:0]
+TOP.top_verilator.soc.timer1.prescale_threshold[31:0]
+TOP.top_verilator.soc.timer1.counter_threshold[31:0]
+TOP.top_verilator.soc.timer1.prescaler[31:0]
+TOP.top_verilator.soc.timer1.counter[31:0]
 @200
 -
 -SoC Wishbone Bus

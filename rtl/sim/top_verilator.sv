@@ -12,9 +12,8 @@ soc soc(
     .clk_in(clk_i),
     .reset_in(reset_i),
     .leds_out(leds),
-    .test_irq_in(test_irq),
-    .rgb1_out(rgb1_out),
-    .rgb2_out(rgb2_out)
+    .rgb1_out(rgb1),
+    .rgb2_out(rgb2)
 );
 
 logic [31:0] counter;

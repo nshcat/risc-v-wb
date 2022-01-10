@@ -29,6 +29,8 @@ localparam CONTROL_CMPO3EN_BIT = 4;
 wire enable_cmp1 = control[CONTROL_CMPO1EN_BIT];
 wire enable_cmp2 = control[CONTROL_CMPO2EN_BIT];
 wire enable_cmp3 = control[CONTROL_CMPO3EN_BIT];
+wire enable_timer = control[CONTROL_TIMEN_BIT];
+wire enable_irq = control[CONTROL_IRQEN_BIT];
 
 // Bus write handling
 wire [31:0] word_wmask = {
@@ -99,7 +101,7 @@ always_ff @(posedge clk_in) begin
         counter <= 32'h0;
         interrupt <= 1'b0;
     end
-    else begin
+    else if(enable_timer) begin
         if (prescaler == prescale_threshold) begin
             prescaler <= 32'h0;
             if (counter == counter_threshold) begin
@@ -116,6 +118,10 @@ always_ff @(posedge clk_in) begin
             interrupt <= 1'b0;
         end
     end
+    else begin
+        // Make sure interrupt line is definitely turned off even if timer is disabled
+        interrupt <= 1'b0;
+    end
 end
 
 // Comparator output
@@ -124,7 +130,7 @@ assign compare_out[1] = (counter < cmp_value_2) & enable_cmp2;
 assign compare_out[2] = (counter < cmp_value_3) & enable_cmp3;
 
 // Interrupt generation
-assign timer_irq_out = control[CONTROL_IRQEN_BIT] & interrupt;
+assign timer_irq_out = enable_irq & interrupt;
 
 // Bus connection
 assign bus_slave.rdata = rdata;
