@@ -24,6 +24,8 @@
 .set CSR_MEPC, 0x341
 .set CSR_MCAUSE, 0x342
 .set CSR_MTVAL, 0x343
+.set CSR_MIE, 0x304
+.set CSR_MSTATUS, 0x300
 
 # Peripheral memory-mapped registers
 .set EIC_MASK, 0x4010
@@ -88,7 +90,10 @@ _isr_common:
     mv a0, t0           # First argument is MCAUSE
     csrr a1, CSR_MTVAL  # Second argument are exception details
     call exc_handler
-    j .restore
+
+.exc_loop:
+    # Loop endlessly for exceptions
+    j .exc_loop
 
 .was_interrupt:
     # Clear MSB to obtain EIC interrupt number from MCAUSE
@@ -205,6 +210,14 @@ _start:
 	j .zero_loop				# continue with next loop iteration
 
 .zero_end:
+    # Enable external interrupt source in MIE CSR (bit 11)
+    li t0, 0x800
+    csrw CSR_MIE, t0
+
+    # Enable interrupts in MSTATUS CSR (bit 3)
+    li t0, 0x8
+    csrw CSR_MSTATUS, t0
+
 	# Jump to main function and actually execute the program
 	jal main
 	

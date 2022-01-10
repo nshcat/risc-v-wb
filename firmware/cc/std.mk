@@ -55,7 +55,7 @@ mem_usage: $(TARGET).elf
 	@$(SIZE) $(TARGET).elf --format=sysv | ./../../scripts/stats.py --mem-usage --flash-size=12288 --sram-size=4096 --newline
 	
 copy: $(TARGET).txt
-	@cp $(TARGET).txt ./../../../../implementation/memory/
+	@cp $(TARGET).txt ./../../../../rtl/memory/
 	@printf "%-8s %s\n" "CP" "$< -> /memory"
 	
 disasm: $(TARGET).elf

@@ -4,14 +4,17 @@ module top_verilator(
 );
 
 logic [3:0] leds;
-
+logic [2:0] rgb1;
+logic [2:0] rgb2;
 logic test_irq;
 
 soc soc(
     .clk_in(clk_i),
     .reset_in(reset_i),
     .leds_out(leds),
-    .test_irq_in(test_irq)
+    .test_irq_in(test_irq),
+    .rgb1_out(rgb1_out),
+    .rgb2_out(rgb2_out)
 );
 
 logic [31:0] counter;

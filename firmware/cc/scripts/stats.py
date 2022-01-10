@@ -25,9 +25,15 @@ class style():
     WHITE = lambda x: '\033[37m' + str(x) + '\033[0m'
     UNDERLINE = lambda x: '\033[4m' + str(x) + '\033[0m'
     RESET = lambda x: '\033[0m' + str(x)
-    
+
+use_colors = False
+
 def color_percentage(p):
     fmt = f"{p:.2f}"
+
+    if not use_colors:
+        return fmt
+
     if p > 100.0:
         return style.RED(fmt)
     elif p > 85.0:
@@ -40,11 +46,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--flash-size", help="Available flash", type=int)
 parser.add_argument("--sram-size", help="Available SRAM", type=int)
 parser.add_argument("--newline", help="Add new line before output", action='store_true')
+parser.add_argument("--color", help="Show colored output", action='store_true')
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("--mem-usage", help="Show memory usage statistics", action='store_true')
 group.add_argument("--sym-size", help="Show ranking of symbols and their size", action='store_true')
 args = parser.parse_args()
 
+use_colors = args.color
 
 if args.mem_usage:
     text = 0

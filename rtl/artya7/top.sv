@@ -4,7 +4,10 @@ module top(
 
     input logic reset_btn_in,   // Gets asserted when pushed
 
-    output logic [3:0] leds_out
+    output logic [3:0] leds_out,
+
+    output logic [2:0] rgb1_out,
+    output logic [2:0] rgb2_out
 );
 
 // Clock generation
@@ -43,7 +46,9 @@ logic reset = ~reset_rising & locked;
 soc soc(
     .clk_in(slow_clk),
     .reset_in(reset),
-    .leds_out(leds_out)
+    .leds_out(leds_out),
+    .rgb1_out(rgb1_out),
+    .rgb2_out(rgb2_out)
 );
 
 endmodule
